@@ -1,46 +1,78 @@
 # NAME.md
 
-`NAME.md` is a desktop Markdown editor built with React, Vite, TipTap, and Tauri.
+`NAME.md` is a lightweight Markdown editor built with React, TipTap, and Tauri.
 
-It is designed for local-first writing, with optional GitHub-backed document libraries for syncing Markdown content through your own repository.
+It is designed for local-first writing, with optional GitHub-backed document libraries for syncing Markdown files through your own repository.
+
+## Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Repository Structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Getting Started](#getting-started)
+- [Desktop Builds](#desktop-builds)
+- [Android Builds](#android-builds)
+- [GitHub Libraries](#github-libraries)
+- [Common Commands](#common-commands)
+- [Troubleshooting](#troubleshooting)
+- [Attribution](#attribution)
 
 ## Features
 
-- Rich Markdown editing powered by TipTap
-- Local file editing with open, save, rename, move, and delete actions
-- Local folder libraries for browsing Markdown collections
-- Optional GitHub library support using your own repository
+- WYSIWYG Markdown editing
+- Local draft and local file support
+- Local folder libraries
+- Optional GitHub-backed Markdown library
+- GitHub OAuth device-flow sign-in
+- Save locally/cache first, then sync to GitHub
+- Visual table editing with stable column widths
 - Light, warm, and dark themes
-- Desktop packaging through Tauri for macOS and Linux
+- Desktop and Android builds through Tauri
 
-## Tech stack
+## Tech Stack
 
 - Frontend: React 19, TypeScript, Vite
-- Editor: TipTap with Markdown support
-- Desktop shell: Tauri 2
+- Editor: TipTap / ProseMirror
+- Desktop/mobile shell: Tauri 2
 - Native layer: Rust
+- Icons: Lucide React
 
-## Repository structure
+## Repository Structure
 
 ```text
 .
-├── src/                 Frontend application code
-├── src-tauri/           Tauri and Rust desktop application code
-├── public/              Static assets
-├── dist/                Production frontend build output
-└── .github/workflows/   CI and release automation
+├── src/                         React application source
+├── public/                      Static web assets
+├── src-tauri/                   Tauri/Rust source and config
+│   ├── src/                     Rust commands/native bridge
+│   ├── capabilities/            Tauri permissions
+│   ├── icons/                   Generated app icon set
+│   └── gen/android/             Tauri Android project source/config
+├── package.json                 npm scripts and dependencies
+├── package-lock.json            locked npm dependency graph
+└── vite.config.ts               Vite config
 ```
+
+Generated build folders are intentionally ignored, especially:
+
+- `node_modules/`
+- `dist/`
+- `src-tauri/target/`
+- `src-tauri/gen/android/.gradle/`
+- `src-tauri/gen/android/app/build/`
+- `src-tauri/gen/android/app/src/main/jniLibs/`
 
 ## Prerequisites
 
-You need these tools installed before building the app yourself:
+Install:
 
 - Node.js 22 or newer
 - npm 11 or newer
-- Rust stable toolchain with Cargo
-- Platform-native build dependencies for Tauri
+- Rust stable with Cargo
+- Platform-native Tauri build dependencies
 
-Recommended version check:
+Check versions:
 
 ```bash
 node --version
@@ -49,124 +81,32 @@ rustc --version
 cargo --version
 ```
 
-## Platform prerequisites
-
-### macOS
-
-Install:
-
-- Xcode Command Line Tools
-- Rust stable
-- Node.js and npm
-
-Command:
-
-```bash
-xcode-select --install
-```
-
-For universal macOS builds, Rust needs both Apple targets:
-
-```bash
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
-```
-
 ### Windows
 
 Install:
 
-- Microsoft Visual Studio C++ Build Tools or Visual Studio with Desktop development for C++
-- WebView2
-- Rust stable with the MSVC toolchain
-- Node.js and npm
+- Visual Studio 2022 Build Tools or Visual Studio with `Desktop development with C++`
+- Microsoft Edge WebView2 Runtime
+- Rust MSVC toolchain
 
-Recommended setup:
-
-- Install Visual Studio 2022 with the `Desktop development with C++` workload
-- Install the Microsoft Edge WebView2 runtime if it is not already present
-- Use the MSVC Rust target, which is the standard Tauri setup on Windows
-
-Helpful commands:
+Useful setup commands:
 
 ```bash
 rustup default stable-x86_64-pc-windows-msvc
 rustup target add x86_64-pc-windows-msvc
 ```
 
-### Ubuntu
-
-Install:
-
-- `build-essential`
-- `curl`
-- `wget`
-- `file`
-- `libwebkit2gtk-4.1-dev`
-- `libappindicator3-dev`
-- `librsvg2-dev`
-- `patchelf`
-
-Example:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  build-essential \
-  curl \
-  wget \
-  file \
-  libwebkit2gtk-4.1-dev \
-  libappindicator3-dev \
-  librsvg2-dev \
-  patchelf
-```
-
-### Fedora
-
-Install:
-
-- `gcc`
-- `gcc-c++`
-- `make`
-- `webkit2gtk4.1-devel`
-- `libappindicator-gtk3-devel`
-- `librsvg2-devel`
-- `patchelf`
-- `rpm-build`
-
-Example:
-
-```bash
-sudo dnf install -y \
-  gcc \
-  gcc-c++ \
-  make \
-  webkit2gtk4.1-devel \
-  libappindicator-gtk3-devel \
-  librsvg2-devel \
-  patchelf \
-  rpm-build
-```
-
 ### Android
 
-Android support requires the standard Tauri mobile toolchain. Install:
+Install:
 
 - Android Studio
-- Android SDK
 - Android SDK Platform and Build-Tools
-- Java Development Kit 17
-- Rust stable
-- Node.js and npm
-
-Recommended Android components:
-
-- Android SDK Platform for a recent API level
 - Android SDK Command-line Tools
-- Android SDK Build-Tools
-- Android Emulator if you want local device testing
+- JDK 17 or Android Studio's bundled JBR
+- Rust Android targets
 
-Rust targets commonly needed for Android:
+Rust targets:
 
 ```bash
 rustup target add \
@@ -176,201 +116,136 @@ rustup target add \
   x86_64-linux-android
 ```
 
-Notes:
+Tauri mobile uses the Android project under `src-tauri/gen/android/`.
 
-- You will need Android Studio to manage SDK paths and emulator/device setup
-- Tauri mobile builds also depend on a correctly configured JDK and Android SDK environment
-- This repository already contains generated Android project files under `src-tauri/gen/android/`
+## Getting Started
 
-## Getting started
-
-Clone the repository and install dependencies:
+Install dependencies:
 
 ```bash
-git clone <your-repo-url>
-cd name.md
 npm install
 ```
 
-Start the frontend in the browser:
+Run the web frontend:
 
 ```bash
 npm run dev
 ```
 
-Start the desktop app in development mode:
+Run the desktop app in development mode:
 
 ```bash
 npm run tauri:dev
 ```
 
-## Building the app yourself
+## Desktop Builds
 
-### Frontend production build
+Build the frontend only:
 
 ```bash
 npm run build
 ```
 
-This writes the web build to `dist/`.
-
-### Desktop production build
+Build the desktop app for the current platform:
 
 ```bash
 npm run tauri:build
 ```
 
-This performs the frontend build and then packages the Tauri desktop app for the current host platform.
+On Windows this produces installer bundles under:
 
-## Release builds
-
-Tauri desktop bundles are native-platform builds. In practice:
-
-- macOS releases must be built on macOS
-- Ubuntu and Fedora releases must be built on Linux
-
-### macOS release
-
-Builds a universal app bundle and DMG:
-
-```bash
-npm run release:mac
+```text
+src-tauri/target/release/bundle/
 ```
 
-Outputs:
+Typical Windows outputs:
 
-- `.app`
-- `.dmg`
+- `src-tauri/target/release/bundle/nsis/NAME.md_0.1.0_x64-setup.exe`
+- `src-tauri/target/release/bundle/msi/NAME.md_0.1.0_x64_en-US.msi`
 
-Location:
+## Android Builds
 
-- `src-tauri/target/universal-apple-darwin/release/bundle/`
-
-### Ubuntu release
-
-Builds AppImage and Debian packages:
+Build Android release artifacts:
 
 ```bash
-npm run release:ubuntu
+npm run tauri -- android build
 ```
 
-Outputs:
+Typical outputs:
 
-- `.AppImage`
-- `.deb`
+- Unsigned APK: `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+- AAB: `src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
 
-Location:
+For direct device install, the release APK must be aligned and signed. For local testing on Windows, the Android debug keystore can be used:
 
-- `src-tauri/target/release/bundle/`
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.1.0\zipalign.exe" -p -f 4 `
+  "src-tauri\gen\android\app\build\outputs\apk\universal\release\app-universal-release-unsigned.apk" `
+  "src-tauri\gen\android\app\build\outputs\apk\universal\release\NAME.md-universal-release-aligned.apk"
 
-### Fedora release
-
-Builds an RPM package:
-
-```bash
-npm run release:fedora
+& "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.1.0\apksigner.bat" sign `
+  --ks "$env:USERPROFILE\.android\debug.keystore" `
+  --ks-key-alias androiddebugkey `
+  --ks-pass pass:android `
+  --key-pass pass:android `
+  --out "src-tauri\gen\android\app\build\outputs\apk\universal\release\NAME.md-universal-release-debug-signed.apk" `
+  "src-tauri\gen\android\app\build\outputs\apk\universal\release\NAME.md-universal-release-aligned.apk"
 ```
 
-Outputs:
+For public distribution, use your own release keystore instead of the debug keystore.
 
-- `.rpm`
+## GitHub Libraries
 
-Location:
+The app can use GitHub as an optional Markdown file store.
 
-- `src-tauri/target/release/bundle/`
+Current behavior:
 
-### Linux all-in-one release
+- GitHub OAuth Device Flow sign-in
+- Default private library repo: `name.md-files`
+- Default document root: `docs`
+- Default assets root: `assets`
+- Files are cached locally before syncing
+- GitHub sync uses file SHAs for remote-change/conflict detection
 
-Builds AppImage, Deb, and RPM in one run:
+To use GitHub sign-in, configure a GitHub OAuth App client ID in the app's GitHub settings.
 
-```bash
-npm run release:linux
-```
-
-## GitHub publishing and releases
-
-This repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
-
-It builds native release artifacts for:
-
-- macOS on `macos-latest`
-- Linux packages on `ubuntu-22.04`
-
-The workflow creates a draft GitHub release and uploads the generated assets.
-
-### Triggering a release
-
-Push a semantic version tag:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-You can also trigger the workflow manually with `workflow_dispatch` from the GitHub Actions UI.
-
-## Using GitHub-backed libraries
-
-The app can connect to GitHub and use a repository as a Markdown library.
-
-To use that flow yourself, you need:
-
-- A GitHub account
-- A GitHub OAuth app client ID
-- Permission to create or use a repository for your documents
-
-The app restricts its native HTTP bridge to GitHub API and GitHub OAuth endpoints.
-
-## Development notes
-
-- The frontend is built automatically before Tauri production builds
-- The Rust backend provides file system operations and GitHub HTTP requests
-- Desktop release artifacts are written under `src-tauri/target/`
-- Android project files are generated under `src-tauri/gen/android/`
-
-## Common commands
+## Common Commands
 
 ```bash
 npm install
+npm run lint
 npm run dev
 npm run tauri:dev
 npm run build
 npm run tauri:build
-npm run release:mac
-npm run release:ubuntu
-npm run release:fedora
-npm run release:linux
+npm run tauri -- android build
 ```
 
 ## Troubleshooting
 
 ### `npm install` fails
 
-Confirm your Node.js and npm versions are current enough:
+Check Node.js and npm versions:
 
 ```bash
 node --version
 npm --version
 ```
 
-### Tauri build fails on Linux
+### Windows build fails
 
-This usually means one or more native GTK/WebKit dependencies are missing. Recheck the Ubuntu or Fedora prerequisite package list above.
+Confirm Visual Studio C++ Build Tools, the Rust MSVC toolchain, and WebView2 are installed.
 
-### macOS build fails
+If the build cannot replace `src-tauri/target/release/app.exe`, close any running `NAME.md` desktop app and rebuild.
 
-Confirm:
+### Android build fails
 
-- Xcode Command Line Tools are installed
-- both Rust Apple targets are installed
-- you are building on macOS
+Confirm Android Studio, SDK Build-Tools, SDK Command-line Tools, JDK/JBR, NDK, and Rust Android targets are installed.
 
-## License
-
-This project is licensed under the MIT License. See `LICENSE`.
+If signing fails, check the installed Build-Tools version and adjust the `36.1.0` path in the signing commands.
 
 ## Attribution
 
-This project took inspiration from `markdown-for-humans` by Concretios:
+This project took UX inspiration from `markdown-for-humans` by Concretios:
 
-- http://github.com/concretios/markdown-for-humans
+- https://github.com/concretios/markdown-for-humans
