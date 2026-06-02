@@ -5,6 +5,7 @@ const activeLibraryKey = 'name-md.active-library.v1'
 const editorSessionKey = 'name-md.editor-session.v1'
 const githubAuthKey = 'name-md.github-auth.v1'
 const githubClientIdKey = 'name-md.github-client-id.v1'
+const defaultGitHubClientId = 'Ov23liMB4R0H09IPP0XF'
 const githubDeviceFlowKey = 'name-md.github-device-flow.v1'
 const githubCacheKey = 'name-md.github-cache.v1'
 
@@ -72,7 +73,7 @@ export function saveGitHubAuth(auth: GitHubAuthState | null) {
 }
 
 export function loadGitHubClientId() {
-  return localStorage.getItem(githubClientIdKey) || import.meta.env.VITE_GITHUB_CLIENT_ID || ''
+  return localStorage.getItem(githubClientIdKey) || import.meta.env.VITE_GITHUB_CLIENT_ID || defaultGitHubClientId
 }
 
 export function saveGitHubClientId(clientId: string) {
