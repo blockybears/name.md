@@ -1,7 +1,6 @@
-# NAME.md
+# NAME.md  **Not Another Markdown Editor**.
 
 `NAME.md` is a lightweight Markdown editor built with React, TipTap, and Tauri.
-The name stands for **Not Another Markdown Editor**.
 
 It is designed for local-first writing, with optional GitHub-backed document libraries for syncing Markdown files through your own repository.
 
