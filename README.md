@@ -1,6 +1,7 @@
 # NAME.md
 
 `NAME.md` is a lightweight Markdown editor built with React, TipTap, and Tauri.
+The name stands for **Not Another Markdown Editor**.
 
 It is designed for local-first writing, with optional GitHub-backed document libraries for syncing Markdown files through your own repository.
 
@@ -12,6 +13,7 @@ It is designed for local-first writing, with optional GitHub-backed document lib
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [Desktop Builds](#desktop-builds)
+- [Linux Builds](#linux-builds)
 - [Android Builds](#android-builds)
 - [GitHub Libraries](#github-libraries)
 - [Common Commands](#common-commands)
@@ -96,6 +98,61 @@ rustup default stable-x86_64-pc-windows-msvc
 rustup target add x86_64-pc-windows-msvc
 ```
 
+### Ubuntu
+
+Install:
+
+- `build-essential`
+- `curl`
+- `wget`
+- `file`
+- `libwebkit2gtk-4.1-dev`
+- `libappindicator3-dev`
+- `librsvg2-dev`
+- `patchelf`
+
+Example:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libwebkit2gtk-4.1-dev \
+  libappindicator3-dev \
+  librsvg2-dev \
+  patchelf
+```
+
+### Fedora
+
+Install:
+
+- `gcc`
+- `gcc-c++`
+- `make`
+- `webkit2gtk4.1-devel`
+- `libappindicator-gtk3-devel`
+- `librsvg2-devel`
+- `patchelf`
+- `rpm-build`
+
+Example:
+
+```bash
+sudo dnf install -y \
+  gcc \
+  gcc-c++ \
+  make \
+  webkit2gtk4.1-devel \
+  libappindicator-gtk3-devel \
+  librsvg2-devel \
+  patchelf \
+  rpm-build
+```
+
 ### Android
 
 Install:
@@ -163,6 +220,28 @@ Typical Windows outputs:
 - `src-tauri/target/release/bundle/nsis/NAME.md_0.1.0_x64-setup.exe`
 - `src-tauri/target/release/bundle/msi/NAME.md_0.1.0_x64_en-US.msi`
 
+## Linux Builds
+
+Build Linux desktop packages on the target Linux environment:
+
+```bash
+npm run tauri:build
+```
+
+Typical outputs are written under:
+
+```text
+src-tauri/target/release/bundle/
+```
+
+Depending on the distro and installed packaging tools, Linux outputs may include:
+
+- AppImage
+- Debian package (`.deb`)
+- RPM package (`.rpm`)
+
+Ubuntu and Fedora builds have been produced, but runtime testing is still needed on target systems.
+
 ## Android Builds
 
 Build Android release artifacts:
@@ -207,7 +286,9 @@ Current behavior:
 - Files are cached locally before syncing
 - GitHub sync uses file SHAs for remote-change/conflict detection
 
-To use GitHub sign-in, configure a GitHub OAuth App client ID in the app's GitHub settings.
+The app includes its GitHub OAuth App client ID so normal users can connect by selecting `Connect GitHub`.
+The OAuth client secret is not embedded and is not required for GitHub Device Flow.
+Advanced Settings can still override the client ID for custom builds.
 
 ## Common Commands
 
@@ -237,6 +318,10 @@ npm --version
 Confirm Visual Studio C++ Build Tools, the Rust MSVC toolchain, and WebView2 are installed.
 
 If the build cannot replace `src-tauri/target/release/app.exe`, close any running `NAME.md` desktop app and rebuild.
+
+### Linux build fails
+
+This usually means one or more native GTK/WebKit or packaging dependencies are missing. Recheck the Ubuntu or Fedora prerequisite package list above.
 
 ### Android build fails
 
