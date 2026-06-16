@@ -303,8 +303,8 @@ The workflow creates a draft GitHub release and uploads the generated assets.
 Push a semantic version tag:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 You can also trigger the workflow manually with `workflow_dispatch` from the GitHub Actions UI.
