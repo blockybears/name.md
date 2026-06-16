@@ -82,7 +82,7 @@ import {
   SaveSyncIndicator,
 } from './library/LibraryExplorer'
 import { createDirectLocalFile, directLocalLibrary } from './library/localProvider'
-import { isTauriRuntime, isUriPath, readTextPath, writeTextPath } from './library/localFiles'
+import { getStartupFilePaths, isTauriRuntime, isUriPath, readTextPath, writeTextPath } from './library/localFiles'
 import { getLibraryProvider } from './library/providers'
 import { saveSyncStateFromFileStatus, type SaveSyncState } from './library/saveSyncStatus'
 import {
@@ -585,6 +585,7 @@ function App() {
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [syncing, setSyncing] = useState(false)
   const ensuringDefaultGitHubRef = useRef(false)
+  const startupFileLoadedRef = useRef(false)
   const { dialog, dialogs, resolveDialog } = useAppDialogs()
 
   const mobile = useIsMobileViewport()
@@ -813,6 +814,32 @@ function App() {
     return savedFile
   }, [libraryFolderPath, refreshLibrary])
 
+  const openDirectFile = useCallback(async (path: string) => {
+    const content = await readTextPath(path)
+    const file = createDirectLocalFile(path)
+    setDocument(content, file)
+    setStatus(`Opened ${file.name}`)
+    setMobileLibraryOpen(false)
+  }, [setDocument])
+
+  useEffect(() => {
+    if (!isTauriRuntime() || startupFileLoadedRef.current) {
+      return
+    }
+
+    startupFileLoadedRef.current = true
+    void getStartupFilePaths()
+      .then((paths) => {
+        const path = paths[0]
+        if (!path) {
+          return
+        }
+
+        return openDirectFile(path)
+      })
+      .catch((error) => setStatus(`Startup file open failed: ${formatError(error)}`))
+  }, [openDirectFile])
+
   useEffect(() => {
     if (!currentFile || !currentLibrary || currentLibrary.provider !== 'github' || !dirty) {
       return
@@ -852,14 +879,11 @@ function App() {
         return
       }
 
-      const content = await readTextPath(selected)
-      setDocument(content, createDirectLocalFile(selected))
-      setStatus(`Opened ${fileNameFromPath(selected)}`)
-      setMobileLibraryOpen(false)
+      await openDirectFile(selected)
     } catch (error) {
       setStatus(`Open failed: ${formatError(error)}`)
     }
-  }, [setDocument])
+  }, [openDirectFile])
 
   const handleSaveAs = useCallback(async () => {
     if (!isTauriRuntime()) {

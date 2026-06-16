@@ -29,6 +29,10 @@ export async function readTextPath(path: string) {
   return new TextDecoder('utf-8').decode(bytes)
 }
 
+export async function getStartupFilePaths() {
+  return invoke<string[]>('get_startup_file_paths')
+}
+
 export async function writeTextPath(path: string, content: string) {
   if (!isUriPath(path)) {
     await invoke('write_text_file', { path, content })

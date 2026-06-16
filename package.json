@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "release:mac": "tauri build --target universal-apple-darwin --bundles app,dmg",
+    "release:ubuntu": "tauri build --bundles appimage,deb",
+    "release:fedora": "tauri build --bundles rpm",
+    "release:linux": "tauri build --bundles appimage,deb,rpm"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

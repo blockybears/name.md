@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use std::{
+  env, fs,
+  path::{Path, PathBuf},
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +39,21 @@ struct GitHubHttpResponse {
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
   fs::read_to_string(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn get_startup_file_paths() -> Vec<String> {
+  env::args_os()
+    .skip(1)
+    .filter_map(|arg| {
+      let path = PathBuf::from(arg);
+      if path.is_file() {
+        Some(path.to_string_lossy().to_string())
+      } else {
+        None
+      }
+    })
+    .collect()
 }
 
 #[tauri::command]
@@ -131,6 +149,7 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_opener::init())
     .invoke_handler(tauri::generate_handler![
+      get_startup_file_paths,
       read_text_file,
       write_text_file,
       list_directory,
