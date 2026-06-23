@@ -86,18 +86,23 @@ import { getStartupFilePaths, isTauriRuntime, isUriPath, readTextPath, writeText
 import { getLibraryProvider } from './library/providers'
 import { saveSyncStateFromFileStatus, type SaveSyncState } from './library/saveSyncStatus'
 import {
+  deleteFileLink,
+  getFileLink,
+  listFileLinks,
   loadActiveLibraryId,
   loadEditorSession,
   loadGitHubAuth,
   loadGitHubClientId,
   loadGitHubDeviceFlow,
   loadLibraries,
+  nowIso,
   saveActiveLibraryId,
   saveEditorSession,
   saveGitHubAuth,
   saveGitHubClientId,
   saveGitHubDeviceFlow,
   saveLibraries,
+  setFileLink,
 } from './library/storage'
 import {
   fileNameFromPath,
@@ -584,14 +589,28 @@ function App() {
   const [githubDevicePolling, setGithubDevicePolling] = useState(false)
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [syncing, setSyncing] = useState(false)
+  const [fileLinksTick, setFileLinksTick] = useState(0)
   const ensuringDefaultGitHubRef = useRef(false)
   const startupFileLoadedRef = useRef(false)
+  const lastDevicePollAtRef = useRef(0)
   const { dialog, dialogs, resolveDialog } = useAppDialogs()
 
   const mobile = useIsMobileViewport()
   const dirty = markdown !== savedMarkdown
   const currentLibrary = libraryForFile(currentFile, libraries)
   const activeLibrary = libraries.find((library) => library.id === activeLibraryId) ?? libraries[0] ?? null
+  const linkedLocalPaths = useMemo(() => {
+    // fileLinksTick is read here so the memo recomputes after links change in localStorage.
+    void fileLinksTick
+    if (!activeLibrary || activeLibrary.provider !== 'github') {
+      return {} as Record<string, string>
+    }
+    const map: Record<string, string> = {}
+    for (const link of listFileLinks(activeLibrary.id)) {
+      map[link.repoPath] = link.localPath
+    }
+    return map
+  }, [activeLibrary, fileLinksTick])
   const defaultGitHubLibrary = libraries.find(
     (library) =>
       library.provider === 'github' &&
@@ -1160,6 +1179,64 @@ function App() {
     }
   }, [activeLibrary, currentFile, currentLibrary, dirty, handleSave, libraryFolderPath, refreshLibrary])
 
+  const handlePushFromLocal = useCallback(async (file: LibraryFile) => {
+    const library = activeLibrary
+    if (!library || library.provider !== 'github') {
+      setStatus('Linking a local file requires a GitHub library')
+      return
+    }
+    if (file.type !== 'file') {
+      return
+    }
+
+    // Remember the pairing the first time so future pushes skip the picker.
+    let link = getFileLink(library.id, file.path)
+    if (!link) {
+      const selected = await open({ multiple: false, title: `Choose a local file to push into ${file.name}` })
+      if (typeof selected !== 'string') {
+        return
+      }
+      link = { repoLibraryId: library.id, repoPath: file.path, localPath: selected, updatedAt: nowIso() }
+      setFileLink(link)
+      setFileLinksTick((tick) => tick + 1)
+    }
+
+    setSyncing(true)
+    try {
+      const content = await readTextPath(link.localPath)
+      const provider = getLibraryProvider(library)
+      await provider.writeFile(file, library, content)
+      const results = await provider.sync?.(library, file)
+      const last = results?.at(-1)
+      if (last?.file) {
+        const synced = last.file
+        setCurrentFile((current) =>
+          current && current.libraryId === library.id && current.path === file.path ? synced : current,
+        )
+      }
+      await refreshLibrary(library, libraryFolderPath)
+      if (last?.status === 'conflict') {
+        setStatus(last.message)
+      } else {
+        setStatus(`Pushed ${link.localPath} → ${file.path}`)
+      }
+    } catch (error) {
+      setStatus(`Push from local failed: ${formatError(error)}`)
+    } finally {
+      setSyncing(false)
+    }
+  }, [activeLibrary, libraryFolderPath, refreshLibrary])
+
+  const handleUnlinkLocal = useCallback((file: LibraryFile) => {
+    const library = activeLibrary
+    if (!library || library.provider !== 'github') {
+      return
+    }
+    deleteFileLink(library.id, file.path)
+    setFileLinksTick((tick) => tick + 1)
+    setStatus(`Unlinked local source for ${file.path}`)
+  }, [activeLibrary])
+
   const handleResolveConflict = useCallback(async (resolution: ConflictResolution) => {
     if (!currentFile || !currentLibrary || currentLibrary.provider !== 'github') {
       return
@@ -1277,22 +1354,41 @@ function App() {
     }
 
     setGithubDevicePolling(true)
+    lastDevicePollAtRef.current = Date.now()
     try {
-      const auth = await pollGitHubDeviceFlow(githubClientId.trim(), githubDeviceFlow.deviceCode)
-      if (!auth) {
+      const result = await pollGitHubDeviceFlow(githubClientId.trim(), githubDeviceFlow.deviceCode)
+
+      if (result.kind === 'slowDown') {
+        // GitHub asked us to back off — add 5s to the interval so the next
+        // scheduled poll honors the new rate instead of staying throttled.
+        setStoredGitHubDeviceFlow({
+          ...githubDeviceFlow,
+          intervalSeconds: githubDeviceFlow.intervalSeconds + 5,
+        })
         setStatus('Waiting for GitHub authorization')
         return
       }
 
+      if (result.kind === 'pending') {
+        setStatus('Waiting for GitHub authorization')
+        return
+      }
+
+      const { auth } = result
       setGithubAuth(auth)
       setStoredGitHubDeviceFlow(null)
       setStatus(`Connected GitHub as ${auth.login}`)
       await ensureDefaultGitHubLibrary(auth)
     } catch (error) {
       const message = formatError(error)
-      setStatus(`GitHub sign-in failed: ${message}`)
-      if (/expired|access_denied|incorrect_device_code/i.test(message)) {
+      if (/device_flow_disabled/i.test(message)) {
         setStoredGitHubDeviceFlow(null)
+        setStatus('Enable Device Flow for this OAuth app in GitHub Developer settings, then try again.')
+      } else if (/expired|access_denied|incorrect_device_code|unsupported_grant_type|incorrect_client_credentials/i.test(message)) {
+        setStoredGitHubDeviceFlow(null)
+        setStatus(`GitHub sign-in failed: ${message}`)
+      } else {
+        setStatus(`GitHub sign-in failed: ${message}`)
       }
     } finally {
       setGithubDevicePolling(false)
@@ -1334,17 +1430,22 @@ function App() {
       return
     }
 
-    const resumePolling = () => {
-      if (document.visibilityState === 'visible') {
-        void handlePollGitHub()
+    // Re-poll when the window regains focus (e.g. returning from the browser
+    // after entering the code), but never faster than the device-flow interval
+    // or GitHub will throttle us with slow_down and the token never arrives.
+    const pollIfDue = () => {
+      if (document.visibilityState !== 'visible') {
+        return
       }
+      const minGap = Math.max(1, githubDeviceFlow.intervalSeconds) * 1000
+      if (Date.now() - lastDevicePollAtRef.current < minGap) {
+        return
+      }
+      void handlePollGitHub()
     }
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void handlePollGitHub()
-      }
-    }
+    const resumePolling = pollIfDue
+    const handleVisibilityChange = pollIfDue
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', resumePolling)
@@ -1839,9 +1940,12 @@ function App() {
       onOpenFile={handleOpenLibraryFile}
       onOpenFolder={(file) => setLibraryFolderPath(file.path)}
       onRefresh={() => void refreshLibrary()}
+      onPushFromLocal={handlePushFromLocal}
       onRename={handleRenameLibraryFile}
       onSelectLibrary={handleSelectLibrary}
       onSync={handleSync}
+      onUnlinkLocal={handleUnlinkLocal}
+      linkedLocalPaths={linkedLocalPaths}
     />
   )
 

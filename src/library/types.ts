@@ -87,6 +87,18 @@ export type GitHubDeviceFlowState = {
   intervalSeconds: number
 }
 
+export type GitHubDevicePollResult =
+  | { kind: 'authorized'; auth: GitHubAuthState }
+  | { kind: 'pending' }
+  | { kind: 'slowDown' }
+
+export type FileLink = {
+  repoLibraryId: string
+  repoPath: string
+  localPath: string
+  updatedAt: string
+}
+
 export type CachedGitHubFile = {
   libraryId: string
   path: string

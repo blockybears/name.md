@@ -7,12 +7,14 @@ import {
   FolderOpen,
   FolderPlus,
   GitBranch,
+  Link2Off,
   Loader2,
   Pencil,
   RefreshCw,
   RotateCw,
   Settings,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -53,6 +55,9 @@ type LibraryExplorerProps = {
   onDisconnectGitHub: () => void
   onEnsureDefaultGitHubLibrary: () => void
   onMove: (file: LibraryFile) => void
+  onPushFromLocal?: (file: LibraryFile) => void
+  onUnlinkLocal?: (file: LibraryFile) => void
+  linkedLocalPaths?: Record<string, string>
   onNewLocalDraft?: () => void
   onOpenLocalFile: () => void
   onOpenFile: (file: LibraryFile) => void
@@ -117,6 +122,9 @@ export function LibraryExplorer({
   onDisconnectGitHub,
   onEnsureDefaultGitHubLibrary,
   onMove,
+  onPushFromLocal,
+  onUnlinkLocal,
+  linkedLocalPaths,
   onNewLocalDraft,
   onOpenLocalFile,
   onOpenFile,
@@ -396,6 +404,30 @@ export function LibraryExplorer({
                   >
                     <FolderOpen size={14} />
                   </button>
+                  {activeLibrary?.provider === 'github' && file.type === 'file' && onPushFromLocal && (
+                    <button
+                      type="button"
+                      className={linkedLocalPaths?.[file.path] ? 'icon-button active' : 'icon-button'}
+                      title={
+                        linkedLocalPaths?.[file.path]
+                          ? `Push from ${linkedLocalPaths[file.path]}`
+                          : 'Push from local file…'
+                      }
+                      onClick={() => onPushFromLocal(file)}
+                    >
+                      <Upload size={14} />
+                    </button>
+                  )}
+                  {activeLibrary?.provider === 'github' && linkedLocalPaths?.[file.path] && onUnlinkLocal && (
+                    <button
+                      type="button"
+                      className="icon-button"
+                      title={`Unlink local source (${linkedLocalPaths[file.path]})`}
+                      onClick={() => onUnlinkLocal(file)}
+                    >
+                      <Link2Off size={14} />
+                    </button>
+                  )}
                   <button type="button" className="icon-button danger" title="Delete" onClick={() => onDelete(file)}>
                     <Trash2 size={14} />
                   </button>

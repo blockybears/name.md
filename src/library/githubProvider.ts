@@ -16,6 +16,7 @@ import {
   type ConflictResolution,
   type GitHubAuthState,
   type GitHubDeviceFlowState,
+  type GitHubDevicePollResult,
   type GitHubRepo,
   type Library,
   type LibraryFile,
@@ -328,7 +329,10 @@ export async function startGitHubDeviceFlow(clientId: string): Promise<GitHubDev
   }
 }
 
-export async function pollGitHubDeviceFlow(clientId: string, deviceCode: string): Promise<GitHubAuthState | null> {
+export async function pollGitHubDeviceFlow(
+  clientId: string,
+  deviceCode: string,
+): Promise<GitHubDevicePollResult> {
   const response = await invoke<NativeGitHubResponse>('github_http', {
     request: {
       method: 'POST',
@@ -352,8 +356,14 @@ export async function pollGitHubDeviceFlow(clientId: string, deviceCode: string)
 
   const data = JSON.parse(response.body) as { access_token?: string; error?: string; error_description?: string }
 
-  if (data.error === 'authorization_pending' || data.error === 'slow_down') {
-    return null
+  if (data.error === 'authorization_pending') {
+    return { kind: 'pending' }
+  }
+
+  // GitHub requires us to back off by an extra 5s each time we see slow_down,
+  // otherwise it keeps returning slow_down and the token is never delivered.
+  if (data.error === 'slow_down') {
+    return { kind: 'slowDown' }
   }
 
   if (data.error) {
@@ -361,7 +371,7 @@ export async function pollGitHubDeviceFlow(clientId: string, deviceCode: string)
   }
 
   if (!data.access_token) {
-    return null
+    return { kind: 'pending' }
   }
 
   const user = await githubRequest<GitHubUser>('/user', {
@@ -373,10 +383,13 @@ export async function pollGitHubDeviceFlow(clientId: string, deviceCode: string)
   }
 
   return {
-    token: data.access_token,
-    login: user.login,
-    name: user.name,
-    avatarUrl: user.avatar_url,
+    kind: 'authorized',
+    auth: {
+      token: data.access_token,
+      login: user.login,
+      name: user.name,
+      avatarUrl: user.avatar_url,
+    },
   }
 }
 
