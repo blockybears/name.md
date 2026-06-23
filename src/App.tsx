@@ -32,6 +32,7 @@ import {
   Moon,
   Network,
   NotebookTabs,
+  PenTool,
   Share2,
   Pilcrow,
   Quote,
@@ -1883,6 +1884,14 @@ function App() {
       .run()
   }, [editor, tableActive])
 
+  const insertExcalidraw = useCallback(() => {
+    if (!editor || tableActive) {
+      return
+    }
+
+    editor.chain().focus().insertContent({ type: 'excalidrawDrawing', attrs: { code: '' } }).run()
+  }, [editor, tableActive])
+
   const runToolbarAction = useCallback((action: () => unknown) => {
     void action()
     setOpenToolbarMenu(null)
@@ -2223,6 +2232,7 @@ function App() {
             <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
             <ToolbarMenuItem icon={Network} label="Insert Mermaid diagram" disabled={tableActive} onClick={() => runToolbarAction(insertMermaid)} />
             <ToolbarMenuItem icon={Share2} label="Insert JSON flow graph" disabled={tableActive} onClick={() => runToolbarAction(insertJsonFlow)} />
+            <ToolbarMenuItem icon={PenTool} label="Insert drawing" disabled={tableActive} onClick={() => runToolbarAction(insertExcalidraw)} />
           </ToolbarDropdown>
         </nav>
       )}
@@ -2319,6 +2329,7 @@ function App() {
             <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
             <ToolbarMenuItem icon={Network} label="Insert Mermaid diagram" disabled={tableActive} onClick={() => runToolbarAction(insertMermaid)} />
             <ToolbarMenuItem icon={Share2} label="Insert JSON flow graph" disabled={tableActive} onClick={() => runToolbarAction(insertJsonFlow)} />
+            <ToolbarMenuItem icon={PenTool} label="Insert drawing" disabled={tableActive} onClick={() => runToolbarAction(insertExcalidraw)} />
             <ToolbarMenuItem icon={Link2} label="Insert link" onClick={() => runToolbarAction(insertLink)} />
             <ToolbarMenuItem icon={Image} label="Insert image" disabled={tableActive} onClick={() => runToolbarAction(insertImage)} />
           </ToolbarDropdown>

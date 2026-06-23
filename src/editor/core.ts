@@ -9,6 +9,7 @@ import { Details, DetailsContent, DetailsSummary } from './collapsible'
 import { Callout, KeyboardKey, Underline } from './richFormatting'
 import { MermaidDiagram } from './mermaidDiagram'
 import { JsonFlow } from './jsonFlow'
+import { ExcalidrawDrawing } from './excalidrawDrawing'
 import {
   DefinitionDescription,
   DefinitionList,
@@ -86,6 +87,7 @@ export function createMarkdownExtensions() {
     KeyboardKey,
     MermaidDiagram,
     JsonFlow,
+    ExcalidrawDrawing,
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),

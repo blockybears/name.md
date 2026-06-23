@@ -1535,6 +1535,53 @@ input {
   font-family: var(--mono);
 }
 
+.markdown-surface .excalidraw-block {
+  margin: 0 0 0.6em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--editor-bg);
+}
+
+.markdown-surface .excalidraw-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.3em 0.4em 0;
+}
+
+.markdown-surface .excalidraw-edit-toggle {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15em 0.7em;
+  background: var(--code-bg);
+  color: var(--text);
+  font-size: 0.82em;
+  cursor: pointer;
+}
+
+.markdown-surface .excalidraw-preview {
+  display: flex;
+  justify-content: center;
+  padding: 0.6em;
+  overflow: auto;
+}
+
+.markdown-surface .excalidraw-placeholder {
+  padding: 0.6em 0.8em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.markdown-surface .excalidraw-stage.is-editing .excalidraw-host {
+  height: 460px;
+  width: 100%;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Excalidraw renders absolutely-positioned UI; give it a positioned host. */
+.markdown-surface .excalidraw-host {
+  position: relative;
+}
+
 .markdown-surface ul[data-type='taskList'] {
   padding-left: 0;
   list-style: none;
