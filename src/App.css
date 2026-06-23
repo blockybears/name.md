@@ -1476,6 +1476,65 @@ input {
   line-height: 1.4;
 }
 
+.markdown-surface .jsonflow-block {
+  margin: 0 0 0.6em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--editor-bg);
+}
+
+.markdown-surface .jsonflow-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.3em 0.4em 0;
+}
+
+.markdown-surface .jsonflow-edit-toggle {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15em 0.7em;
+  background: var(--code-bg);
+  color: var(--text);
+  font-size: 0.82em;
+  cursor: pointer;
+}
+
+.markdown-surface .jsonflow-source {
+  display: block;
+  width: calc(100% - 1.2em);
+  min-height: 7em;
+  box-sizing: border-box;
+  resize: vertical;
+  margin: 0 0.6em 0.4em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5em 0.6em;
+  background: var(--code-block);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.markdown-surface .jsonflow-canvas {
+  height: 360px;
+  width: 100%;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.markdown-surface .jsonflow-placeholder,
+.markdown-surface .jsonflow-error,
+.markdown-surface .jsonflow-truncated {
+  padding: 0.6em 0.8em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.markdown-surface .jsonflow-error {
+  color: #ef4444;
+  font-family: var(--mono);
+}
+
 .markdown-surface ul[data-type='taskList'] {
   padding-left: 0;
   list-style: none;

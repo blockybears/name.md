@@ -8,6 +8,7 @@ import { TaskList } from '@tiptap/extension-task-list'
 import { Details, DetailsContent, DetailsSummary } from './collapsible'
 import { Callout, KeyboardKey, Underline } from './richFormatting'
 import { MermaidDiagram } from './mermaidDiagram'
+import { JsonFlow } from './jsonFlow'
 import {
   DefinitionDescription,
   DefinitionList,
@@ -84,6 +85,7 @@ export function createMarkdownExtensions() {
     Underline,
     KeyboardKey,
     MermaidDiagram,
+    JsonFlow,
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),
