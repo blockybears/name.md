@@ -5,6 +5,7 @@ import { StarterKit } from '@tiptap/starter-kit'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { TaskList } from '@tiptap/extension-task-list'
+import { Details, DetailsContent, DetailsSummary } from './collapsible'
 import {
   DefinitionDescription,
   DefinitionList,
@@ -74,6 +75,9 @@ export function createMarkdownExtensions() {
     DefinitionList,
     DefinitionTerm,
     DefinitionDescription,
+    Details,
+    DetailsSummary,
+    DetailsContent,
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),

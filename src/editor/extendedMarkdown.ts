@@ -24,6 +24,14 @@ const headingIdPattern = /\s*\{#([A-Za-z][\w:.-]*)\}\s*$/
 const htmlTagPattern = /<\/?[A-Za-z][A-Za-z0-9-]*(?:\s+[^<>\n]*)?\/?>/g
 const htmlCommentPattern = /<!--[\s\S]*?-->|<!--/g
 
+// HTML tags we keep verbatim instead of escaping, because custom nodes parse
+// them back into rich blocks/marks (collapsibles, callouts, inline styling).
+const passthroughHtmlTags = new Set([
+  'br',
+  'details',
+  'summary',
+])
+
 function createDelimitedInlineMark(name: string, delimiter: string, pattern: RegExp) {
   return {
     name,
@@ -567,7 +575,10 @@ function escapeUnsafeHtmlInLine(line: string) {
 
       return part
         .replace(htmlCommentPattern, (html) => escapeHtml(html))
-        .replace(htmlTagPattern, (tag) => (/^<br\s*\/?>$/i.test(tag) ? tag : escapeHtml(tag)))
+        .replace(htmlTagPattern, (tag) => {
+          const name = tag.match(/^<\/?\s*([A-Za-z][A-Za-z0-9-]*)/)?.[1]?.toLowerCase()
+          return name && passthroughHtmlTags.has(name) ? tag : escapeHtml(tag)
+        })
     })
     .join('')
 }

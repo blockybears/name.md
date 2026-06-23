@@ -6,6 +6,7 @@ import {
   AlignRight,
   Bold,
   ChevronDown,
+  ChevronsDownUp,
   Cloud,
   Code,
   Code2,
@@ -1810,6 +1811,25 @@ function App() {
     editor.chain().focus().insertContent(`${term.trim()}\n: ${definition.trim()}`, { contentType: 'markdown' }).run()
   }, [dialogs, editor, tableActive])
 
+  const insertCollapsible = useCallback(() => {
+    if (!editor || tableActive) {
+      return
+    }
+
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'details',
+        attrs: { open: true },
+        content: [
+          { type: 'detailsSummary', content: [{ type: 'text', text: 'Summary' }] },
+          { type: 'detailsContent', content: [{ type: 'paragraph' }] },
+        ],
+      })
+      .run()
+  }, [editor, tableActive])
+
   const runToolbarAction = useCallback((action: () => unknown) => {
     void action()
     setOpenToolbarMenu(null)
@@ -2144,6 +2164,7 @@ function App() {
           >
             <ToolbarMenuItem icon={NotebookTabs} label="Insert footnote" onClick={() => runToolbarAction(insertFootnote)} />
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
+            <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
           </ToolbarDropdown>
         </nav>
       )}
@@ -2234,6 +2255,7 @@ function App() {
             <ToolbarMenuItem icon={Minus} label="Horizontal rule" disabled={tableActive} onClick={() => runToolbarAction(() => editor?.chain().focus().setHorizontalRule().run())} />
             <ToolbarMenuItem icon={NotebookTabs} label="Insert footnote" onClick={() => runToolbarAction(insertFootnote)} />
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
+            <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
             <ToolbarMenuItem icon={Link2} label="Insert link" onClick={() => runToolbarAction(insertLink)} />
             <ToolbarMenuItem icon={Image} label="Insert image" disabled={tableActive} onClick={() => runToolbarAction(insertImage)} />
           </ToolbarDropdown>

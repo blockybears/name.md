@@ -1302,6 +1302,46 @@ input {
   max-width: 100%;
 }
 
+.markdown-surface .collapsible {
+  margin: 0 0 0.55em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--footnote-bg) 30%, transparent);
+}
+
+.markdown-surface .collapsible > .collapsible-summary {
+  cursor: pointer;
+  padding: 0.45em 0.7em;
+  color: var(--text-strong);
+  font-weight: 600;
+  list-style: none;
+}
+
+.markdown-surface .collapsible > .collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.markdown-surface .collapsible > .collapsible-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 0.5em;
+  color: var(--muted);
+  transition: transform 0.12s ease;
+}
+
+.markdown-surface .collapsible[open] > .collapsible-summary::before {
+  transform: rotate(90deg);
+}
+
+.markdown-surface .collapsible > .collapsible-content {
+  padding: 0.1em 0.85em 0.4em;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.markdown-surface .collapsible > .collapsible-content > *:last-child {
+  margin-bottom: 0;
+}
+
 .markdown-surface ul[data-type='taskList'] {
   padding-left: 0;
   list-style: none;
