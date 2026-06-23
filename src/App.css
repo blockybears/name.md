@@ -1404,6 +1404,78 @@ input {
   --callout-accent: #ef4444;
 }
 
+.markdown-surface .mermaid-block {
+  margin: 0 0 0.6em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--editor-bg);
+}
+
+.markdown-surface .mermaid-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.3em 0.4em 0;
+}
+
+.markdown-surface .mermaid-edit-toggle {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15em 0.7em;
+  background: var(--code-bg);
+  color: var(--text);
+  font-size: 0.82em;
+  cursor: pointer;
+}
+
+.markdown-surface .mermaid-preview {
+  display: flex;
+  justify-content: center;
+  padding: 0.6em;
+  overflow: auto;
+}
+
+.markdown-surface .mermaid-preview svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-surface .mermaid-preview.mermaid-error {
+  justify-content: flex-start;
+  color: #ef4444;
+  font-family: var(--mono);
+  font-size: 0.82em;
+  white-space: pre-wrap;
+}
+
+.markdown-surface .mermaid-placeholder {
+  color: var(--muted);
+  font-size: 0.88em;
+}
+
+.markdown-surface .mermaid-editor {
+  display: none;
+  padding: 0 0.6em 0.6em;
+}
+
+.markdown-surface .mermaid-block.is-editing .mermaid-editor {
+  display: block;
+}
+
+.markdown-surface .mermaid-source {
+  width: 100%;
+  min-height: 8em;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5em 0.6em;
+  background: var(--code-block);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
 .markdown-surface ul[data-type='taskList'] {
   padding-left: 0;
   list-style: none;

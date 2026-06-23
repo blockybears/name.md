@@ -30,6 +30,7 @@ import {
   ListTree,
   Minus,
   Moon,
+  Network,
   NotebookTabs,
   Pilcrow,
   Quote,
@@ -1849,6 +1850,21 @@ function App() {
       .run()
   }, [editor, tableActive])
 
+  const insertMermaid = useCallback(() => {
+    if (!editor || tableActive) {
+      return
+    }
+
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'mermaidDiagram',
+        attrs: { code: 'flowchart TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Do thing]\n  B -->|No| D[Skip]' },
+      })
+      .run()
+  }, [editor, tableActive])
+
   const runToolbarAction = useCallback((action: () => unknown) => {
     void action()
     setOpenToolbarMenu(null)
@@ -2187,6 +2203,7 @@ function App() {
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
             <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
             <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
+            <ToolbarMenuItem icon={Network} label="Insert Mermaid diagram" disabled={tableActive} onClick={() => runToolbarAction(insertMermaid)} />
           </ToolbarDropdown>
         </nav>
       )}
@@ -2281,6 +2298,7 @@ function App() {
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
             <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
             <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
+            <ToolbarMenuItem icon={Network} label="Insert Mermaid diagram" disabled={tableActive} onClick={() => runToolbarAction(insertMermaid)} />
             <ToolbarMenuItem icon={Link2} label="Insert link" onClick={() => runToolbarAction(insertLink)} />
             <ToolbarMenuItem icon={Image} label="Insert image" disabled={tableActive} onClick={() => runToolbarAction(insertImage)} />
           </ToolbarDropdown>
