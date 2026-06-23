@@ -30,6 +30,8 @@ const passthroughHtmlTags = new Set([
   'br',
   'details',
   'summary',
+  'u',
+  'kbd',
 ])
 
 function createDelimitedInlineMark(name: string, delimiter: string, pattern: RegExp) {

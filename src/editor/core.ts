@@ -6,6 +6,7 @@ import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table
 import { TaskItem } from '@tiptap/extension-task-item'
 import { TaskList } from '@tiptap/extension-task-list'
 import { Details, DetailsContent, DetailsSummary } from './collapsible'
+import { Callout, KeyboardKey, Underline } from './richFormatting'
 import {
   DefinitionDescription,
   DefinitionList,
@@ -78,6 +79,9 @@ export function createMarkdownExtensions() {
     Details,
     DetailsSummary,
     DetailsContent,
+    Callout,
+    Underline,
+    KeyboardKey,
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),

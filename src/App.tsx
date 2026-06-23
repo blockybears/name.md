@@ -19,7 +19,9 @@ import {
   Heading,
   Highlighter,
   Image,
+  Info,
   Italic,
+  Keyboard,
   Library as LibraryIcon,
   Link2,
   List,
@@ -45,6 +47,7 @@ import {
   Table2,
   Trash2,
   Type as TypeIcon,
+  Underline,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -1830,6 +1833,22 @@ function App() {
       .run()
   }, [editor, tableActive])
 
+  const insertCallout = useCallback(() => {
+    if (!editor || tableActive) {
+      return
+    }
+
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'callout',
+        attrs: { calloutType: 'note' },
+        content: [{ type: 'paragraph' }],
+      })
+      .run()
+  }, [editor, tableActive])
+
   const runToolbarAction = useCallback((action: () => unknown) => {
     void action()
     setOpenToolbarMenu(null)
@@ -2137,9 +2156,11 @@ function App() {
           <IconButton icon={Bold} label="Bold" active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} />
           <IconButton icon={Italic} label="Italic" active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} />
           <IconButton icon={Strikethrough} label="Strikethrough" active={editor?.isActive('strike')} onClick={() => editor?.chain().focus().toggleStrike().run()} />
+          <IconButton icon={Underline} label="Underline" active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleMark('underline').run()} />
           <IconButton icon={Highlighter} label="Highlight" active={editor?.isActive('highlight')} onClick={() => editor?.chain().focus().toggleMark('highlight').run()} />
           <IconButton icon={Subscript} label="Subscript" active={editor?.isActive('subscript')} onClick={() => editor?.chain().focus().toggleMark('subscript').run()} />
           <IconButton icon={Superscript} label="Superscript" active={editor?.isActive('superscript')} onClick={() => editor?.chain().focus().toggleMark('superscript').run()} />
+          <IconButton icon={Keyboard} label="Keyboard key" active={editor?.isActive('keyboardKey')} onClick={() => editor?.chain().focus().toggleMark('keyboardKey').run()} />
           <span className="toolbar-separator" aria-hidden="true" />
           <IconButton icon={Code} label="Inline code" active={editor?.isActive('code')} onClick={() => editor?.chain().focus().toggleCode().run()} />
           <IconButton icon={Code2} label="Code block" disabled={tableActive} active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} />
@@ -2165,6 +2186,7 @@ function App() {
             <ToolbarMenuItem icon={NotebookTabs} label="Insert footnote" onClick={() => runToolbarAction(insertFootnote)} />
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
             <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
+            <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
           </ToolbarDropdown>
         </nav>
       )}
@@ -2218,9 +2240,11 @@ function App() {
             <ToolbarMenuItem icon={Bold} label="Bold" active={editor?.isActive('bold')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleBold().run())} />
             <ToolbarMenuItem icon={Italic} label="Italic" active={editor?.isActive('italic')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleItalic().run())} />
             <ToolbarMenuItem icon={Strikethrough} label="Strikethrough" active={editor?.isActive('strike')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleStrike().run())} />
+            <ToolbarMenuItem icon={Underline} label="Underline" active={editor?.isActive('underline')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('underline').run())} />
             <ToolbarMenuItem icon={Highlighter} label="Highlight" active={editor?.isActive('highlight')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('highlight').run())} />
             <ToolbarMenuItem icon={Subscript} label="Subscript" active={editor?.isActive('subscript')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('subscript').run())} />
             <ToolbarMenuItem icon={Superscript} label="Superscript" active={editor?.isActive('superscript')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('superscript').run())} />
+            <ToolbarMenuItem icon={Keyboard} label="Keyboard key" active={editor?.isActive('keyboardKey')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('keyboardKey').run())} />
           </ToolbarDropdown>
           <ToolbarDropdown
             id="block"
@@ -2256,6 +2280,7 @@ function App() {
             <ToolbarMenuItem icon={NotebookTabs} label="Insert footnote" onClick={() => runToolbarAction(insertFootnote)} />
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
             <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
+            <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
             <ToolbarMenuItem icon={Link2} label="Insert link" onClick={() => runToolbarAction(insertLink)} />
             <ToolbarMenuItem icon={Image} label="Insert image" disabled={tableActive} onClick={() => runToolbarAction(insertImage)} />
           </ToolbarDropdown>
