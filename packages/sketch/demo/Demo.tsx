@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createElement, createScene, literal, token, type DrawStyle } from '../src'
-import { SketchView } from '../src/react'
+import { useEffect, useState } from 'react'
+import { createElement, createScene, literal, token, type DrawStyle, type Scene } from '../src'
+import { SketchCanvas, SketchView } from '../src/react'
 
 type Theme = 'light' | 'warm' | 'dark'
 
@@ -18,13 +18,12 @@ function sampleScene(style: DrawStyle) {
 
 export function Demo() {
   const [theme, setTheme] = useState<Theme>('light')
-  const [style, setStyle] = useState<DrawStyle>('sketchy')
+  const [mode, setMode] = useState<'read' | 'edit'>('edit')
+  const [scene, setScene] = useState<Scene>(() => sampleScene('sketchy'))
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
-
-  const scene = useMemo(() => sampleScene(style), [style])
 
   return (
     <div className="demo">
@@ -36,15 +35,20 @@ export function Demo() {
               {option}
             </button>
           ))}
-          {(['clean', 'sketchy'] as DrawStyle[]).map((option) => (
-            <button key={option} aria-pressed={style === option} onClick={() => setStyle(option)}>
-              {option}
-            </button>
-          ))}
+          <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')}>
+            edit
+          </button>
+          <button aria-pressed={mode === 'read'} onClick={() => setMode('read')}>
+            read
+          </button>
         </div>
       </header>
       <div className="demo-card">
-        <SketchView scene={scene} className="sketch-read-view" />
+        {mode === 'edit' ? (
+          <SketchCanvas scene={scene} onChange={setScene} onExit={() => setMode('read')} style={{ height: 480 }} />
+        ) : (
+          <SketchView scene={scene} className="sketch-read-view" />
+        )}
       </div>
     </div>
   )

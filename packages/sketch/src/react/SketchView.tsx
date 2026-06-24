@@ -1,5 +1,6 @@
 import { useMemo, type CSSProperties } from 'react'
 import { renderScene, type RenderOptions, type Scene } from '../core'
+import { RenderedScene } from './RenderedScene'
 
 export interface SketchViewProps {
   scene: Scene
@@ -25,35 +26,7 @@ export function SketchView({ scene, className, style, options }: SketchViewProps
       preserveAspectRatio="xMidYMid meet"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {rendered.elements.map((element) => (
-        <g key={element.id} transform={element.transform} opacity={element.opacity}>
-          {element.shapes.map((shape, index) =>
-            shape.kind === 'path' ? (
-              <path
-                key={index}
-                d={shape.d}
-                stroke={shape.stroke}
-                strokeWidth={shape.strokeWidth}
-                fill={shape.fill}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            ) : (
-              <text
-                key={index}
-                x={shape.x}
-                y={shape.y}
-                fontSize={shape.fontSize}
-                fontFamily={shape.fontFamily}
-                textAnchor={shape.anchor}
-                fill={shape.fill}
-              >
-                {shape.text}
-              </text>
-            ),
-          )}
-        </g>
-      ))}
+      <RenderedScene elements={rendered.elements} />
     </svg>
   )
 }

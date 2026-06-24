@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict'
 import {
+  applyResize,
   createElement,
   createScene,
   elementBounds,
+  elementsInMarquee,
+  hitTest,
+  History,
   literal,
+  normalizeRect,
   parseScene,
   rectToViewBox,
+  resizeRect,
   sceneContentBounds,
   sceneToSvgString,
   serializeScene,
@@ -137,6 +143,52 @@ test('token and literal colors resolve through render', () => {
   const scene = createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 10, height: 10, stroke: token('accent') })] })
   const svg = sceneToSvgString(scene)
   assert.ok(svg.includes('var(--sketch-accent'))
+})
+
+test('hitTest returns the topmost element under a point', () => {
+  const lower = createElement({ type: 'rectangle', x: 0, y: 0, width: 100, height: 100, id: 'lower' })
+  const upper = createElement({ type: 'rectangle', x: 40, y: 40, width: 100, height: 100, id: 'upper' })
+  assert.equal(hitTest([lower, upper], { x: 60, y: 60 }, 4)?.id, 'upper')
+  assert.equal(hitTest([lower, upper], { x: 10, y: 10 }, 4)?.id, 'lower')
+  assert.equal(hitTest([lower, upper], { x: 500, y: 500 }, 4), null)
+})
+
+test('elementsInMarquee selects intersecting elements', () => {
+  const a = createElement({ type: 'rectangle', x: 0, y: 0, width: 20, height: 20, id: 'a' })
+  const b = createElement({ type: 'rectangle', x: 200, y: 200, width: 20, height: 20, id: 'b' })
+  const hits = elementsInMarquee([a, b], { x: -5, y: -5, width: 60, height: 60 }).map((element) => element.id)
+  assert.deepEqual(hits, ['a'])
+})
+
+test('resizeRect adjusts the dragged edge', () => {
+  const rect = { x: 0, y: 0, width: 100, height: 100 }
+  assert.deepEqual(resizeRect(rect, 'se', { x: 150, y: 120 }), { x: 0, y: 0, width: 150, height: 120 })
+  assert.deepEqual(resizeRect(rect, 'nw', { x: 20, y: 30 }), { x: 20, y: 30, width: 80, height: 70 })
+})
+
+test('applyResize scales linear element points', () => {
+  const line = createElement({ type: 'line', x: 0, y: 0, width: 100, height: 50, points: [{ x: 0, y: 0 }, { x: 100, y: 50 }], id: 'l' })
+  const resized = applyResize(line, { x: 0, y: 0, width: 200, height: 100 })
+  assert.ok('points' in resized)
+  assert.deepEqual((resized as typeof line).points[1], { x: 200, y: 100 })
+})
+
+test('normalizeRect handles drags in any direction', () => {
+  assert.deepEqual(normalizeRect({ x: 50, y: 60 }, { x: 10, y: 20 }), { x: 10, y: 20, width: 40, height: 40 })
+})
+
+test('History supports undo/redo with branching', () => {
+  const history = new History(1)
+  history.push(2)
+  history.push(3)
+  assert.equal(history.value, 3)
+  assert.equal(history.undo(), 2)
+  assert.equal(history.undo(), 1)
+  assert.equal(history.canUndo(), false)
+  assert.equal(history.redo(), 2)
+  history.push(9) // branching clears redo
+  assert.equal(history.canRedo(), false)
+  assert.equal(history.value, 9)
 })
 
 console.log(`\n${passed}/${passed + failed} passed`)
