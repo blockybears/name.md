@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createElement, createScene, literal, token, type DrawStyle, type Scene } from '../src'
-import { SketchCanvas, SketchView } from '../src/react'
+import { SketchView } from '../src/react'
+import { SketchCanvas } from '../src/react/SketchCanvas'
 
 type Theme = 'light' | 'warm' | 'dark'
 

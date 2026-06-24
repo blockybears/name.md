@@ -2,11 +2,13 @@
 export class History<T> {
   private past: T[] = []
   private future: T[] = []
+  private current: T
+  private limit: number
 
-  constructor(
-    private current: T,
-    private limit = 100,
-  ) {}
+  constructor(initial: T, limit = 100) {
+    this.current = initial
+    this.limit = limit
+  }
 
   get value(): T {
     return this.current

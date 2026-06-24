@@ -1582,6 +1582,72 @@ input {
   position: relative;
 }
 
+/* ---- unified Sketch drawing/diagram block ---- */
+.markdown-surface .sketch-drawing-block {
+  margin: 0 0 0.6em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--editor-bg);
+}
+
+.markdown-surface .sketch-drawing-readview {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: 80px;
+  padding: 0.4em;
+  cursor: pointer;
+}
+
+.markdown-surface .sketch-drawing-svg {
+  display: block;
+  width: 100%;
+  max-height: 460px;
+}
+
+.markdown-surface .sketch-drawing-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 120px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.markdown-surface .sketch-drawing-edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15em 0.7em;
+  background: var(--button);
+  color: var(--text);
+  font-size: 0.8em;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.markdown-surface .sketch-drawing-readview:hover .sketch-drawing-edit {
+  opacity: 1;
+}
+
+.markdown-surface .sketch-drawing-stage {
+  height: 480px;
+  width: 100%;
+}
+
+.markdown-surface .sketch-drawing-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted);
+}
+
 .markdown-surface ul[data-type='taskList'] {
   padding-left: 0;
   list-style: none;

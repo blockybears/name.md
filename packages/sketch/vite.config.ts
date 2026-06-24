@@ -12,6 +12,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
         react: resolve(__dirname, 'src/react/index.ts'),
+        'react-canvas': resolve(__dirname, 'src/react/SketchCanvas.tsx'),
       },
       formats: ['es'],
     },

@@ -27,6 +27,22 @@
   --cell-bg: #ffffff;
   --header-bg: #eef3f8;
   --selection: rgba(37, 99, 235, 0.14);
+
+  /* Sketch drawing engine tokens. Defined once: they reference the semantic
+     theme variables above, which are redefined per theme, so the drawing
+     surface adapts to light/warm/dark automatically (no hard white in dark). */
+  --sketch-foreground: var(--text);
+  --sketch-muted: var(--muted);
+  --sketch-accent: var(--accent);
+  --sketch-surface: var(--page-bg);
+  --sketch-canvas: var(--editor-bg);
+  --sketch-panel-bg: var(--chrome);
+  --sketch-panel-border: var(--border);
+  --sketch-control-bg: var(--button);
+  --sketch-hover: color-mix(in srgb, var(--text) 12%, transparent);
+  --sketch-ui-font: var(--sans);
+  --sketch-mono: var(--mono);
+
   color: var(--text);
   background: var(--bg);
   color-scheme: light;

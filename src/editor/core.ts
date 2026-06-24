@@ -10,6 +10,7 @@ import { Callout, KeyboardKey, Underline } from './richFormatting'
 import { MermaidDiagram } from './mermaidDiagram'
 import { JsonFlow } from './jsonFlow'
 import { ExcalidrawDrawing } from './excalidrawDrawing'
+import { SketchDrawing } from './sketchDrawing'
 import {
   DefinitionDescription,
   DefinitionList,
@@ -88,6 +89,7 @@ export function createMarkdownExtensions() {
     MermaidDiagram,
     JsonFlow,
     ExcalidrawDrawing,
+    SketchDrawing,
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),

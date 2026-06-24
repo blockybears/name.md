@@ -27,11 +27,13 @@ export const DIAGRAM_KINDS: Array<{ id: DiagramKind; label: string }> = [
 /** Incrementally builds a set of elements with shared style + connector helpers. */
 class DiagramBuilder {
   elements: SketchElement[] = []
+  private origin: Point
+  private style: DrawStyle
 
-  constructor(
-    private origin: Point,
-    private style: DrawStyle,
-  ) {}
+  constructor(origin: Point, style: DrawStyle) {
+    this.origin = origin
+    this.style = style
+  }
 
   node(
     type: Extract<ElementType, 'rectangle' | 'ellipse' | 'diamond'>,
