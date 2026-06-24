@@ -1,7 +1,16 @@
 import { viewBoxForScene, rectToViewBox } from '../camera'
 import { resolveColor } from '../color'
 import { diamondPath, ellipsePath, polylinePath, rectPath } from './shapes'
-import type { Rect, Scene, SketchElement, TextAlign } from '../types'
+import {
+  ellipsePoints,
+  hachureEllipse,
+  hachurePath,
+  hachurePolygon,
+  makeRng,
+  roughClosedCurve,
+  roughPolyline,
+} from './sketch'
+import type { Point, Rect, Scene, SketchElement, TextAlign } from '../types'
 
 export interface RenderPath {
   kind: 'path'
@@ -48,22 +57,91 @@ const anchorFor: Record<TextAlign, RenderText['anchor']> = {
   right: 'end',
 }
 
-/** Clean geometric outline + fill path for a shape element (sketchy comes later). */
-function shapeGeometry(element: SketchElement): { outline: string; fill: string | null } {
+function rectPolygon(width: number, height: number): Point[] {
+  return [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ]
+}
+
+function diamondPolygon(width: number, height: number): Point[] {
+  return [
+    { x: width / 2, y: 0 },
+    { x: width, y: height / 2 },
+    { x: width / 2, y: height },
+    { x: 0, y: height / 2 },
+  ]
+}
+
+function cleanOutline(element: SketchElement): string {
   switch (element.type) {
     case 'rectangle':
-      return { outline: rectPath(element.width, element.height, element.roundness), fill: rectPath(element.width, element.height, element.roundness) }
+      return rectPath(element.width, element.height, element.roundness)
     case 'ellipse':
-      return { outline: ellipsePath(element.width, element.height), fill: ellipsePath(element.width, element.height) }
+      return ellipsePath(element.width, element.height)
     case 'diamond':
-      return { outline: diamondPath(element.width, element.height), fill: diamondPath(element.width, element.height) }
+      return diamondPath(element.width, element.height)
     case 'line':
     case 'arrow':
     case 'freedraw':
-      return { outline: polylinePath(element.points), fill: null }
+      return polylinePath(element.points)
     default:
-      return { outline: '', fill: null }
+      return ''
   }
+}
+
+function sketchyOutline(element: SketchElement, rng: () => number): string {
+  switch (element.type) {
+    case 'rectangle':
+      return roughPolyline(rectPolygon(element.width, element.height), rng, true)
+    case 'diamond':
+      return roughPolyline(diamondPolygon(element.width, element.height), rng, true)
+    case 'ellipse': {
+      const jitterAmount = Math.min(3, 1 + (element.width + element.height) / 160)
+      return roughClosedCurve(ellipsePoints(element.width, element.height), rng, jitterAmount)
+    }
+    case 'line':
+    case 'arrow':
+      return roughPolyline(element.points, rng, false)
+    case 'freedraw':
+      return polylinePath(element.points)
+    default:
+      return ''
+  }
+}
+
+function fillRegionPath(element: SketchElement): string | null {
+  switch (element.type) {
+    case 'rectangle':
+      return rectPath(element.width, element.height, element.roundness)
+    case 'ellipse':
+      return ellipsePath(element.width, element.height)
+    case 'diamond':
+      return diamondPath(element.width, element.height)
+    default:
+      return null
+  }
+}
+
+function hachureSegments(element: SketchElement): Array<[Point, Point]> | null {
+  switch (element.type) {
+    case 'rectangle':
+      return hachurePolygon(rectPolygon(element.width, element.height))
+    case 'diamond':
+      return hachurePolygon(diamondPolygon(element.width, element.height))
+    case 'ellipse':
+      return hachureEllipse(element.width, element.height)
+    default:
+      return null
+  }
+}
+
+function segmentsToPath(segments: Array<[Point, Point]>): string {
+  return segments
+    .map(([a, b]) => `M${a.x.toFixed(2)} ${a.y.toFixed(2)} L${b.x.toFixed(2)} ${b.y.toFixed(2)}`)
+    .join(' ')
 }
 
 function transformFor(element: SketchElement): string {
@@ -75,38 +153,64 @@ function transformFor(element: SketchElement): string {
   return parts.join(' ')
 }
 
-export function renderElement(element: SketchElement): RenderElement {
-  const shapes: RenderShape[] = []
-  const stroke = resolveColor(element.stroke)
-
+function elementShapes(element: SketchElement): RenderShape[] {
   if (element.type === 'text') {
     const color = resolveColor(element.stroke)
     const anchor = anchorFor[element.align]
     const anchorX = element.align === 'left' ? 0 : element.align === 'center' ? element.width / 2 : element.width
     const lineHeight = element.fontSize * 1.25
-    element.text.split('\n').forEach((line, index) => {
-      shapes.push({
-        kind: 'text',
-        x: anchorX,
-        y: (index + 1) * lineHeight - element.fontSize * 0.25,
-        text: line,
-        fontSize: element.fontSize,
-        fontFamily: element.fontFamily,
-        anchor,
-        fill: color,
-      })
-    })
-  } else {
-    const geometry = shapeGeometry(element)
-    if (geometry.fill && element.fillStyle === 'solid') {
-      shapes.push({ kind: 'path', d: geometry.fill, stroke: 'none', strokeWidth: 0, fill: resolveColor(element.fill) })
+    return element.text.split('\n').map((line, index) => ({
+      kind: 'text' as const,
+      x: anchorX,
+      y: (index + 1) * lineHeight - element.fontSize * 0.25,
+      text: line,
+      fontSize: element.fontSize,
+      fontFamily: element.fontFamily,
+      anchor,
+      fill: color,
+    }))
+  }
+
+  const shapes: RenderShape[] = []
+  const rng = makeRng(element.seed)
+  const sketchy = element.style === 'sketchy'
+
+  // Fill (drawn behind the outline).
+  if (element.fillStyle === 'solid') {
+    const region = fillRegionPath(element)
+    if (region) {
+      shapes.push({ kind: 'path', d: region, stroke: 'none', strokeWidth: 0, fill: resolveColor(element.fill) })
     }
-    if (geometry.outline) {
-      shapes.push({ kind: 'path', d: geometry.outline, stroke, strokeWidth: element.strokeWidth, fill: 'none' })
+  } else if (element.fillStyle === 'hachure') {
+    const segments = hachureSegments(element)
+    if (segments && segments.length > 0) {
+      const d = sketchy ? hachurePath(segments, rng) : segmentsToPath(segments)
+      shapes.push({
+        kind: 'path',
+        d,
+        stroke: resolveColor(element.fill),
+        strokeWidth: Math.max(1, element.strokeWidth * 0.6),
+        fill: 'none',
+      })
     }
   }
 
-  return { id: element.id, transform: transformFor(element), opacity: element.opacity, shapes }
+  // Outline.
+  const outline = sketchy ? sketchyOutline(element, rng) : cleanOutline(element)
+  if (outline) {
+    shapes.push({ kind: 'path', d: outline, stroke: resolveColor(element.stroke), strokeWidth: element.strokeWidth, fill: 'none' })
+  }
+
+  return shapes
+}
+
+export function renderElement(element: SketchElement): RenderElement {
+  return {
+    id: element.id,
+    transform: transformFor(element),
+    opacity: element.opacity,
+    shapes: elementShapes(element),
+  }
 }
 
 export function renderScene(scene: Scene, options: RenderOptions = {}): RenderScene {

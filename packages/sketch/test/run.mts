@@ -112,6 +112,27 @@ test('sceneToSvgString emits svg with shapes and escapes text', () => {
   assert.ok(!svg.includes('a < b & "c"'))
 })
 
+test('sketchy render is deterministic for a fixed seed', () => {
+  const make = () => createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 50, style: 'sketchy', seed: 12345, id: 'fixed' })] })
+  assert.equal(sceneToSvgString(make()), sceneToSvgString(make()))
+})
+
+test('clean vs sketchy produce different geometry', () => {
+  const clean = createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 50, style: 'clean', seed: 7, id: 'r' })] })
+  const sketchy = createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 50, style: 'sketchy', seed: 7, id: 'r' })] })
+  assert.notEqual(sceneToSvgString(clean), sceneToSvgString(sketchy))
+  // Sketchy rect uses cubic curves (C); clean rect uses straight H/V commands.
+  assert.ok(sceneToSvgString(sketchy).includes('C'))
+})
+
+test('hachure fill emits fill-colored stroke lines', () => {
+  const scene = createScene({
+    elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 80, fillStyle: 'hachure', fill: literal('#00f'), style: 'clean', id: 'h' })],
+  })
+  const svg = sceneToSvgString(scene)
+  assert.ok(svg.includes('stroke="#00f"'), 'hachure lines use the fill color as stroke')
+})
+
 test('token and literal colors resolve through render', () => {
   const scene = createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 10, height: 10, stroke: token('accent') })] })
   const svg = sceneToSvgString(scene)
