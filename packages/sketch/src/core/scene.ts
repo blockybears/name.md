@@ -34,6 +34,7 @@ const baseDefaults = (style: DrawStyle): Omit<ElementBase, 'id' | 'seed'> => ({
   angle: 0,
   opacity: 1,
   strokeWidth: 2,
+  strokeStyle: 'solid',
   style,
   stroke: token('foreground'),
   fill: token('surface'),
@@ -61,6 +62,10 @@ export function createElement(props: ElementInput, style: DrawStyle = 'sketchy')
       { x: 0, y: 0 },
       { x: merged.width as number, y: merged.height as number },
     ]
+  }
+  if (props.type === 'arrow') {
+    merged.startArrowhead = (props as { startArrowhead?: unknown }).startArrowhead ?? 'none'
+    merged.endArrowhead = (props as { endArrowhead?: unknown }).endArrowhead ?? 'arrow'
   }
   if (props.type === 'text') {
     merged.text = (props as { text?: unknown }).text ?? ''

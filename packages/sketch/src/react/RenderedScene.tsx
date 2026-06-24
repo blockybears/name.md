@@ -15,6 +15,7 @@ export function RenderedScene({ elements }: { elements: RenderElement[] }) {
                 stroke={shape.stroke}
                 strokeWidth={shape.strokeWidth}
                 fill={shape.fill}
+                strokeDasharray={shape.dash}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -26,6 +27,7 @@ export function RenderedScene({ elements }: { elements: RenderElement[] }) {
                 fontSize={shape.fontSize}
                 fontFamily={shape.fontFamily}
                 textAnchor={shape.anchor}
+                dominantBaseline={shape.baseline === 'middle' ? 'central' : undefined}
                 fill={shape.fill}
               >
                 {shape.text}

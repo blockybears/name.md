@@ -1,6 +1,7 @@
 import { createScene } from './scene'
 import { token } from './types'
 import type {
+  Arrowhead,
   ColorToken,
   DrawStyle,
   ElementType,
@@ -10,6 +11,7 @@ import type {
   Scene,
   SketchColor,
   SketchElement,
+  StrokeStyle,
   TextAlign,
 } from './types'
 
@@ -51,7 +53,20 @@ export function parseScene(text: string): Scene {
 
 const elementTypes: ElementType[] = ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text']
 const fillStyles: FillStyle[] = ['none', 'solid', 'hachure']
+const strokeStyles: StrokeStyle[] = ['solid', 'dashed', 'dotted']
+const arrowheads: Arrowhead[] = ['none', 'arrow', 'triangle', 'dot']
 const aligns: TextAlign[] = ['left', 'center', 'right']
+
+function coerceBinding(value: unknown): { elementId: string; focus: number; gap: number } | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const data = value as Record<string, unknown>
+  if (typeof data.elementId !== 'string') {
+    return undefined
+  }
+  return { elementId: data.elementId, focus: num(data.focus, 0), gap: num(data.gap, 4) }
+}
 
 function num(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -135,11 +150,24 @@ function coerceElement(value: unknown): SketchElement | null {
     stroke: coerceColor(data.stroke) ?? token('foreground'),
     fill: coerceColor(data.fill) ?? token('surface'),
     fillStyle: fillStyles.includes(data.fillStyle as FillStyle) ? (data.fillStyle as FillStyle) : 'none',
+    strokeStyle: strokeStyles.includes(data.strokeStyle as StrokeStyle) ? (data.strokeStyle as StrokeStyle) : 'solid',
     roundness: num(data.roundness, 0),
     groupIds: Array.isArray(data.groupIds) ? (data.groupIds.filter((id) => typeof id === 'string') as string[]) : [],
+    ...(typeof data.label === 'string' ? { label: data.label } : {}),
+    ...(typeof data.labelFontSize === 'number' ? { labelFontSize: data.labelFontSize } : {}),
   }
 
-  if (type === 'line' || type === 'arrow' || type === 'freedraw') {
+  if (type === 'arrow') {
+    return {
+      ...base,
+      points: coercePoints(data.points),
+      startArrowhead: arrowheads.includes(data.startArrowhead as Arrowhead) ? (data.startArrowhead as Arrowhead) : 'none',
+      endArrowhead: arrowheads.includes(data.endArrowhead as Arrowhead) ? (data.endArrowhead as Arrowhead) : 'arrow',
+      startBinding: coerceBinding(data.startBinding),
+      endBinding: coerceBinding(data.endBinding),
+    } as unknown as SketchElement
+  }
+  if (type === 'line' || type === 'freedraw') {
     return { ...base, points: coercePoints(data.points) } as unknown as SketchElement
   }
   if (type === 'text') {

@@ -23,10 +23,14 @@ export const literal = (value: string): SketchColor => ({ kind: 'literal', value
 
 export type DrawStyle = 'clean' | 'sketchy'
 export type FillStyle = 'none' | 'solid' | 'hachure'
+export type StrokeStyle = 'solid' | 'dashed' | 'dotted'
 export type TextAlign = 'left' | 'center' | 'right'
+export type Arrowhead = 'none' | 'arrow' | 'triangle' | 'dot'
 export type ElementType = 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw' | 'text'
 
-/** A binding from an arrow endpoint to another element. */
+/** A binding from an arrow endpoint to another element.
+ *  - focus: -1..1 position offset across the target, for fanning out connectors
+ *  - gap: pixels of clearance kept between the arrow tip and the target border */
 export type Binding = { elementId: string; focus: number; gap: number }
 
 export interface ElementBase {
@@ -42,6 +46,7 @@ export interface ElementBase {
   seed: number
   opacity: number
   strokeWidth: number
+  strokeStyle: StrokeStyle
   style: DrawStyle
   stroke: SketchColor
   fill: SketchColor
@@ -49,6 +54,9 @@ export interface ElementBase {
   /** Corner rounding factor for rectangles (0 = sharp). */
   roundness: number
   groupIds: string[]
+  /** Optional centered label drawn inside container shapes (diagram nodes). */
+  label?: string
+  labelFontSize?: number
 }
 
 export interface RectElement extends ElementBase {
@@ -70,6 +78,8 @@ export interface ArrowElement extends ElementBase {
   points: Point[]
   startBinding?: Binding
   endBinding?: Binding
+  startArrowhead: Arrowhead
+  endArrowhead: Arrowhead
 }
 export interface FreedrawElement extends ElementBase {
   type: 'freedraw'

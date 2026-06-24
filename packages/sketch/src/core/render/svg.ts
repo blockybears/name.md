@@ -18,6 +18,7 @@ export interface RenderPath {
   stroke: string
   strokeWidth: number
   fill: string
+  dash?: string
 }
 
 export interface RenderText {
@@ -28,6 +29,7 @@ export interface RenderText {
   fontSize: number
   fontFamily: string
   anchor: 'start' | 'middle' | 'end'
+  baseline?: 'auto' | 'middle'
   fill: string
 }
 
@@ -144,6 +146,41 @@ function segmentsToPath(segments: Array<[Point, Point]>): string {
     .join(' ')
 }
 
+function dashArray(element: SketchElement): string | undefined {
+  const w = Math.max(1, element.strokeWidth)
+  if (element.strokeStyle === 'dashed') {
+    return `${w * 3} ${w * 2.5}`
+  }
+  if (element.strokeStyle === 'dotted') {
+    return `${w * 0.1} ${w * 2}`
+  }
+  return undefined
+}
+
+/** Arrowhead path at point `tip`, pointing along direction (dx,dy), local coords. */
+function arrowheadPath(kind: string, tip: Point, dx: number, dy: number, size: number): string {
+  const len = Math.hypot(dx, dy) || 1
+  const ux = dx / len
+  const uy = dy / len
+  if (kind === 'dot') {
+    const r = size * 0.4
+    return `M${(tip.x - r).toFixed(2)} ${tip.y.toFixed(2)} a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(r * 2).toFixed(2)} 0 a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(-r * 2).toFixed(2)} 0 Z`
+  }
+  // Two barbs at ±30°.
+  const angle = Math.PI / 6
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const back = { x: -ux, y: -uy }
+  const left = { x: back.x * cos - back.y * sin, y: back.x * sin + back.y * cos }
+  const right = { x: back.x * cos + back.y * sin, y: -back.x * sin + back.y * cos }
+  const p1 = { x: tip.x + left.x * size, y: tip.y + left.y * size }
+  const p2 = { x: tip.x + right.x * size, y: tip.y + right.y * size }
+  if (kind === 'triangle') {
+    return `M${tip.x.toFixed(2)} ${tip.y.toFixed(2)} L${p1.x.toFixed(2)} ${p1.y.toFixed(2)} L${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`
+  }
+  return `M${p1.x.toFixed(2)} ${p1.y.toFixed(2)} L${tip.x.toFixed(2)} ${tip.y.toFixed(2)} L${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`
+}
+
 function transformFor(element: SketchElement): string {
   const parts = [`translate(${element.x} ${element.y})`]
   if (element.angle) {
@@ -198,7 +235,66 @@ function elementShapes(element: SketchElement): RenderShape[] {
   // Outline.
   const outline = sketchy ? sketchyOutline(element, rng) : cleanOutline(element)
   if (outline) {
-    shapes.push({ kind: 'path', d: outline, stroke: resolveColor(element.stroke), strokeWidth: element.strokeWidth, fill: 'none' })
+    shapes.push({
+      kind: 'path',
+      d: outline,
+      stroke: resolveColor(element.stroke),
+      strokeWidth: element.strokeWidth,
+      fill: 'none',
+      dash: dashArray(element),
+    })
+  }
+
+  // Arrowheads.
+  if (element.type === 'arrow' && element.points.length >= 2) {
+    const pts = element.points
+    const strokeColor = resolveColor(element.stroke)
+    const size = 8 + element.strokeWidth * 2
+    if (element.endArrowhead !== 'none') {
+      const tip = pts[pts.length - 1]
+      const prev = pts[pts.length - 2]
+      const filled = element.endArrowhead !== 'arrow'
+      shapes.push({
+        kind: 'path',
+        d: arrowheadPath(element.endArrowhead, tip, tip.x - prev.x, tip.y - prev.y, size),
+        stroke: strokeColor,
+        strokeWidth: element.strokeWidth,
+        fill: filled ? strokeColor : 'none',
+      })
+    }
+    if (element.startArrowhead !== 'none') {
+      const tip = pts[0]
+      const next = pts[1]
+      const filled = element.startArrowhead !== 'arrow'
+      shapes.push({
+        kind: 'path',
+        d: arrowheadPath(element.startArrowhead, tip, tip.x - next.x, tip.y - next.y, size),
+        stroke: strokeColor,
+        strokeWidth: element.strokeWidth,
+        fill: filled ? strokeColor : 'none',
+      })
+    }
+  }
+
+  // Centered label (diagram node text).
+  if (element.label && (element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond')) {
+    const fontSize = element.labelFontSize ?? 16
+    const lines = element.label.split('\n')
+    const lineHeight = fontSize * 1.25
+    const startY = element.height / 2 - ((lines.length - 1) * lineHeight) / 2
+    lines.forEach((line, index) => {
+      shapes.push({
+        kind: 'text',
+        x: element.width / 2,
+        y: startY + index * lineHeight,
+        text: line,
+        fontSize,
+        fontFamily: 'inherit',
+        anchor: 'middle',
+        baseline: 'middle',
+        fill: resolveColor(element.stroke),
+      })
+    })
   }
 
   return shapes
@@ -234,9 +330,11 @@ function escapeXml(value: string): string {
 
 function shapeToString(shape: RenderShape): string {
   if (shape.kind === 'path') {
-    return `<path d="${shape.d}" stroke="${shape.stroke}" stroke-width="${shape.strokeWidth}" fill="${shape.fill}" stroke-linejoin="round" stroke-linecap="round" />`
+    const dash = shape.dash ? ` stroke-dasharray="${shape.dash}"` : ''
+    return `<path d="${shape.d}" stroke="${shape.stroke}" stroke-width="${shape.strokeWidth}" fill="${shape.fill}"${dash} stroke-linejoin="round" stroke-linecap="round" />`
   }
-  return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}" text-anchor="${shape.anchor}" fill="${shape.fill}">${escapeXml(shape.text)}</text>`
+  const baseline = shape.baseline === 'middle' ? ' dominant-baseline="central"' : ''
+  return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}" text-anchor="${shape.anchor}"${baseline} fill="${shape.fill}">${escapeXml(shape.text)}</text>`
 }
 
 export function sceneToSvgString(scene: Scene, options: RenderOptions = {}): string {

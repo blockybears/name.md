@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import {
   applyResize,
+  bindableAt,
+  borderPoint,
+  createDiagram,
   createElement,
   createScene,
   elementBounds,
@@ -10,13 +13,16 @@ import {
   literal,
   normalizeRect,
   parseScene,
+  recomputeBindings,
   rectToViewBox,
   resizeRect,
   sceneContentBounds,
   sceneToSvgString,
   serializeScene,
+  simplifyPoints,
   token,
   viewBoxForScene,
+  type ArrowElement,
 } from '../src/index.ts'
 
 let passed = 0
@@ -189,6 +195,85 @@ test('History supports undo/redo with branching', () => {
   history.push(9) // branching clears redo
   assert.equal(history.canRedo(), false)
   assert.equal(history.value, 9)
+})
+
+test('borderPoint lands on a rectangle edge toward the target', () => {
+  const rect = createElement({ type: 'rectangle', x: 0, y: 0, width: 100, height: 100, id: 'r' })
+  // Target directly to the right -> border point on the right edge (x≈100).
+  const point = borderPoint(rect, { x: 500, y: 50 }, 0)
+  assert.ok(Math.abs(point.x - 100) < 0.01, `x=${point.x}`)
+  assert.ok(Math.abs(point.y - 50) < 0.01, `y=${point.y}`)
+})
+
+test('borderPoint adds gap outside the border', () => {
+  const rect = createElement({ type: 'rectangle', x: 0, y: 0, width: 100, height: 100, id: 'r' })
+  const point = borderPoint(rect, { x: 500, y: 50 }, 10)
+  assert.ok(Math.abs(point.x - 110) < 0.01, `x=${point.x}`)
+})
+
+test('bindableAt finds shapes but not lines', () => {
+  const rect = createElement({ type: 'rectangle', x: 0, y: 0, width: 100, height: 100, id: 'r' })
+  const line = createElement({ type: 'line', x: 0, y: 0, width: 100, height: 0, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }], id: 'l' })
+  assert.equal(bindableAt([rect, line], { x: 50, y: 50 }, 4)?.id, 'r')
+  assert.equal(bindableAt([line], { x: 50, y: 0 }, 4), null)
+})
+
+test('recomputeBindings reroutes a bound arrow when its shape moves', () => {
+  const a = createElement({ type: 'rectangle', x: 0, y: 0, width: 100, height: 100, id: 'a' })
+  const b = createElement({ type: 'rectangle', x: 300, y: 0, width: 100, height: 100, id: 'b' })
+  const arrow = createElement(
+    {
+      type: 'arrow',
+      id: 'arr',
+      x: 100,
+      y: 50,
+      width: 200,
+      height: 0,
+      points: [{ x: 0, y: 0 }, { x: 200, y: 0 }],
+      startBinding: { elementId: 'a', focus: 0, gap: 4 },
+      endBinding: { elementId: 'b', focus: 0, gap: 4 },
+    },
+  ) as ArrowElement
+  // Move b far down; re-route should change the arrow end y.
+  const movedB = { ...b, y: 400 }
+  const scene = createScene({ elements: [a, movedB, arrow] })
+  const next = recomputeBindings(scene)
+  const reArrow = next.elements.find((el) => el.id === 'arr') as ArrowElement
+  const endAbs = { x: reArrow.x + reArrow.points[reArrow.points.length - 1].x, y: reArrow.y + reArrow.points[reArrow.points.length - 1].y }
+  assert.ok(endAbs.y > 200, `arrow end should follow shape down, got y=${endAbs.y}`)
+})
+
+test('simplifyPoints drops near-collinear points', () => {
+  const line = [
+    { x: 0, y: 0 },
+    { x: 5, y: 0.1 },
+    { x: 10, y: 0 },
+    { x: 15, y: 0.1 },
+    { x: 20, y: 0 },
+  ]
+  const simplified = simplifyPoints(line, 1)
+  assert.ok(simplified.length < line.length)
+  assert.deepEqual(simplified[0], { x: 0, y: 0 })
+  assert.deepEqual(simplified[simplified.length - 1], { x: 20, y: 0 })
+})
+
+test('createDiagram produces elements that survive serialize round-trip', () => {
+  for (const kind of ['flowchart', 'kanban', 'swimlane', 'mindmap', 'orgchart', 'fishbone', 'gantt', 'sequence'] as const) {
+    const elements = createDiagram(kind, { x: 0, y: 0 }, 'clean')
+    assert.ok(elements.length > 0, `${kind} produced no elements`)
+    const scene = createScene({ elements })
+    const parsed = parseScene(serializeScene(scene))
+    assert.equal(parsed.elements.length, elements.length, `${kind} lost elements on round-trip`)
+    // Render must not throw and must produce svg.
+    assert.ok(sceneToSvgString(scene).startsWith('<svg'), `${kind} failed to render`)
+  }
+})
+
+test('flowchart arrows are bound to shapes', () => {
+  const elements = createDiagram('flowchart', { x: 0, y: 0 }, 'clean')
+  const arrows = elements.filter((el) => el.type === 'arrow') as ArrowElement[]
+  assert.ok(arrows.length >= 3)
+  assert.ok(arrows.every((arrow) => arrow.startBinding && arrow.endBinding), 'every flowchart arrow should bind both ends')
 })
 
 console.log(`\n${passed}/${passed + failed} passed`)
