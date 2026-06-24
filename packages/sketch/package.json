@@ -1,0 +1,28 @@
+{
+  "name": "@namemd/sketch",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Theme-aware hand-drawn vector drawing engine (framework-agnostic core + React wrapper).",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./react": {
+      "types": "./src/react/index.ts",
+      "import": "./src/react/index.ts"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "tsx test/run.mts"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

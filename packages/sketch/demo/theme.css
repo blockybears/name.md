@@ -1,0 +1,102 @@
+/* Demo-only theming. Maps the engine's --sketch-* tokens to per-theme colors,
+   mirroring how name.md will wire them to its own theme variables. */
+:root {
+  --app-bg: #f4f6f8;
+  --app-panel: #ffffff;
+  --app-text: #1f2933;
+  --app-border: #d9e0e8;
+
+  --sketch-foreground: #1f2933;
+  --sketch-muted: #6b7280;
+  --sketch-accent: #2563eb;
+  --sketch-surface: #ffffff;
+  --sketch-canvas: #f8fafc;
+}
+
+:root[data-theme='warm'] {
+  --app-bg: #d0cac3;
+  --app-panel: #ded8d1;
+  --app-text: #1f2937;
+  --app-border: #b8b0a7;
+
+  --sketch-foreground: #1f2937;
+  --sketch-muted: #5f6670;
+  --sketch-accent: #00b4a4;
+  --sketch-surface: #e9e3dc;
+  --sketch-canvas: #d0cac3;
+}
+
+:root[data-theme='dark'] {
+  --app-bg: #111318;
+  --app-panel: #171a21;
+  --app-text: #d7dde7;
+  --app-border: #2b303a;
+
+  --sketch-foreground: #d7dde7;
+  --sketch-muted: #98a2b3;
+  --sketch-accent: #4f8cff;
+  --sketch-surface: #1b2029;
+  --sketch-canvas: #111318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.demo {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.demo header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.demo h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.demo .controls {
+  display: flex;
+  gap: 8px;
+}
+
+.demo button {
+  border: 1px solid var(--app-border);
+  background: var(--app-panel);
+  color: var(--app-text);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.demo button[aria-pressed='true'] {
+  border-color: var(--sketch-accent);
+  color: var(--sketch-accent);
+}
+
+.demo-card {
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--app-panel);
+}
+
+.demo-card .sketch-read-view {
+  display: block;
+  width: 100%;
+  height: 420px;
+}
