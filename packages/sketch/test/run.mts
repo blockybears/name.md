@@ -26,6 +26,9 @@ import {
   toPolygon,
   normalizeVertexBounds,
   pointInPolygon,
+  mermaidToElements,
+  looksLikeMermaid,
+  jsonToElements,
   viewBoxForScene,
   type ArrowElement,
 } from '../src/index.ts'
@@ -374,6 +377,41 @@ test('pretty-printed scene JSON round-trips (code view)', () => {
   const back = parseScene(pretty)
   assert.equal(back.elements.length, 1)
   assert.equal(back.elements[0].width, 20)
+})
+
+test('looksLikeMermaid detects flowchart headers', () => {
+  assert.equal(looksLikeMermaid('graph TD\nA-->B'), true)
+  assert.equal(looksLikeMermaid('flowchart LR; X --> Y'), true)
+  assert.equal(looksLikeMermaid('{ "a": 1 }'), false)
+})
+
+test('mermaidToElements parses nodes, shapes and bound edges', () => {
+  const code = 'graph TD\nA[Start] --> B{Decision}\nB -->|yes| C(Done)\nB -->|no| A'
+  const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const shapes = elements.filter((e) => e.type !== 'arrow')
+  const arrows = elements.filter((e) => e.type === 'arrow') as ArrowElement[]
+  // 3 nodes (A, B, C), 3 edges.
+  assert.equal(shapes.length, 3)
+  assert.equal(arrows.length, 3)
+  assert.ok(shapes.some((s) => s.type === 'diamond' && s.label === 'Decision'))
+  assert.ok(shapes.some((s) => s.label === 'Start'))
+  assert.ok(arrows.every((a) => a.startBinding && a.endBinding), 'edges bind both ends')
+  assert.ok(arrows.some((a) => a.label === 'yes'))
+  // Round-trips + renders.
+  const scene = createScene({ elements })
+  assert.equal(parseScene(serializeScene(scene)).elements.length, elements.length)
+  assert.ok(sceneToSvgString(scene).startsWith('<svg'))
+})
+
+test('jsonToElements builds a tree of nodes + connectors', () => {
+  const elements = jsonToElements('{"name":"x","items":[1,2],"ok":true}', { x: 0, y: 0 }, 'clean')
+  const shapes = elements.filter((e) => e.type !== 'arrow')
+  const arrows = elements.filter((e) => e.type === 'arrow')
+  // root + name + items + 2 items + ok = 6 nodes; edges = nodes - 1
+  assert.equal(shapes.length, 6)
+  assert.equal(arrows.length, 5)
+  assert.ok(shapes.some((s) => s.label?.includes('name')))
+  assert.equal(jsonToElements('not json').length, 0)
 })
 
 test('flowchart arrows are bound to shapes', () => {

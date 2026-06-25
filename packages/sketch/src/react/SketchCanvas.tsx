@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ClipboardEvent as ReactClipboardEvent,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react'
@@ -32,6 +33,9 @@ import {
   handlePositions,
   hasVertices,
   hitTest,
+  jsonToElements,
+  looksLikeMermaid,
+  mermaidToElements,
   History,
   identityCamera,
   isBindable,
@@ -54,6 +58,7 @@ import {
   type ResizeHandle,
 } from '../core'
 import { RenderedScene } from './RenderedScene'
+import { Icon } from './editor/Icon'
 import { Toolbar } from './editor/Toolbar'
 import { PropertiesPanel, type LayerAction } from './editor/PropertiesPanel'
 import { defaultDrawState, type DrawState, type ToolId } from './editor/types'
@@ -130,6 +135,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [codeError, setCodeError] = useState<string | null>(null)
   // Collapse the properties panel by default on small (mobile) viewports.
   const [panelOpen, setPanelOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 640)
+  const [importState, setImportState] = useState<{ type: 'mermaid' | 'json'; text: string; error: string | null } | null>(null)
   const pointersRef = useRef<Map<number, Point>>(new Map())
   const pinchRef = useRef<{ dist: number; mid: Point; camera: Camera } | null>(null)
   const [editingText, setEditingText] = useState<{ id: string; value: string; isLabel: boolean } | null>(null)
@@ -939,6 +945,56 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     [commit, draw.style, scene, viewRect],
   )
 
+  /** Insert parsed graph elements at the viewport's top-left-ish, then select. */
+  const insertElements = useCallback(
+    (elements: SketchElement[]) => {
+      if (elements.length === 0) {
+        return false
+      }
+      const origin = { x: viewRect.x + 40, y: viewRect.y + 40 }
+      const placed = elements.map((el) => ({ ...el, x: el.x + origin.x, y: el.y + origin.y }))
+      commit({ ...scene, elements: [...scene.elements, ...placed] })
+      setSelected(placed.map((el) => el.id))
+      setTool('select')
+      return true
+    },
+    [commit, scene, viewRect],
+  )
+
+  const openImport = useCallback((type: 'mermaid' | 'json') => {
+    setImportState({ type, text: '', error: null })
+  }, [])
+
+  const applyImport = useCallback(() => {
+    if (!importState) {
+      return
+    }
+    const elements =
+      importState.type === 'mermaid'
+        ? mermaidToElements(importState.text, { x: 0, y: 0 }, draw.style)
+        : jsonToElements(importState.text, { x: 0, y: 0 }, draw.style)
+    if (!insertElements(elements)) {
+      setImportState({ ...importState, error: importState.type === 'mermaid' ? 'No flowchart nodes found.' : 'Invalid or empty JSON.' })
+      return
+    }
+    setImportState(null)
+  }, [draw.style, importState, insertElements])
+
+  // Paste native Mermaid text straight onto the canvas.
+  const onPaste = useCallback(
+    (event: ReactClipboardEvent) => {
+      if (editingText || importState) {
+        return
+      }
+      const text = event.clipboardData.getData('text/plain')
+      if (text && looksLikeMermaid(text)) {
+        event.preventDefault()
+        insertElements(mermaidToElements(text, { x: 0, y: 0 }, draw.style))
+      }
+    },
+    [draw.style, editingText, importState, insertElements],
+  )
+
   const zoomBy = useCallback(
     (factor: number) => {
       const cx = size.width / 2
@@ -1069,11 +1125,12 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   }, [camera, draw.fontSize, editingElement, editingText])
 
   return (
-    <div className={`sketch-editor ${className ?? ''}`} style={style}>
+    <div className={`sketch-editor ${className ?? ''}`} style={style} onPaste={onPaste}>
       <Toolbar
         tool={tool}
         onTool={setTool}
         onInsertDiagram={insertDiagram}
+        onImport={openImport}
         zoom={camera.zoom}
         onZoomIn={() => zoomBy(1.2)}
         onZoomOut={() => zoomBy(1 / 1.2)}
@@ -1255,6 +1312,37 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
           )}
         </div>
       </div>
+
+      {importState && (
+        <div className="sketch-import-overlay">
+          <div className="sketch-import-modal">
+            <div className="sketch-import-head">
+              <span>{importState.type === 'mermaid' ? 'Import Mermaid flowchart' : 'Import JSON'}</span>
+              <button type="button" className="sketch-icon-btn" aria-label="Close" onClick={() => setImportState(null)}>
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+            <textarea
+              className="sketch-import-text"
+              autoFocus
+              spellCheck={false}
+              placeholder={importState.type === 'mermaid' ? 'graph TD\n  A[Start] --> B{OK?}\n  B -->|yes| C[Done]' : '{ "name": "example", "items": [1, 2, 3] }'}
+              value={importState.text}
+              onChange={(event) => setImportState({ ...importState, text: event.target.value, error: null })}
+            />
+            <div className="sketch-import-foot">
+              {importState.error && <span className="sketch-import-error">{importState.error}</span>}
+              <span className="sketch-import-spacer" />
+              <button type="button" onClick={() => setImportState(null)}>
+                Cancel
+              </button>
+              <button type="button" className="sketch-import-go" onClick={applyImport}>
+                Insert
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
