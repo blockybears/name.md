@@ -42,6 +42,7 @@ export type IconName =
   | 'set-view'
   | 'code'
   | 'reshape'
+  | 'snap'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -213,6 +214,13 @@ function paths(name: IconName) {
       )
     case 'code':
       return <path d="M9 8l-4 4 4 4M15 8l4 4-4 4" />
+    case 'snap':
+      return (
+        <>
+          <path d="M7 4v7a5 5 0 0 0 10 0V4" />
+          <path d="M5 4h4M15 4h4" />
+        </>
+      )
     case 'reshape':
       return (
         <>

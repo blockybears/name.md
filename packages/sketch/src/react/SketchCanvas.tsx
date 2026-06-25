@@ -19,10 +19,14 @@ import {
   angleToPointer,
   bindableAt,
   cameraViewRect,
+  computeSnap,
   createDiagram,
   createElement,
   elementBounds,
   elementsInMarquee,
+  snapToGrid,
+  SNAP_GRID,
+  type SnapGuide,
   generateId,
   generateSeed,
   handlePositions,
@@ -112,6 +116,10 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [spaceDown, setSpaceDown] = useState(false)
   const [marquee, setMarquee] = useState<Rect | null>(null)
   const [bindHighlight, setBindHighlight] = useState<string | null>(null)
+  const [snapEnabled, setSnapEnabled] = useState(true)
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
+  const pointersRef = useRef<Map<number, Point>>(new Map())
+  const pinchRef = useRef<{ dist: number; mid: Point; camera: Camera } | null>(null)
   const [editingText, setEditingText] = useState<{ id: string; value: string; isLabel: boolean } | null>(null)
   const gestureRef = useRef<Gesture>({ mode: 'none' })
 
@@ -303,6 +311,20 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return
       }
       event.currentTarget.setPointerCapture(event.pointerId)
+      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+
+      // Two fingers down → start a pinch zoom/pan and abandon any other gesture.
+      if (pointersRef.current.size === 2) {
+        const [a, b] = [...pointersRef.current.values()]
+        pinchRef.current = {
+          dist: Math.hypot(b.x - a.x, b.y - a.y),
+          mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+          camera,
+        }
+        gestureRef.current = { mode: 'none' }
+        return
+      }
+
       const point = toScene(event.clientX, event.clientY)
 
       if (spaceDown || event.button === 1) {
@@ -407,8 +429,40 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     [camera, canResize, draw, editablePolyline, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, spaceDown, tool, toScene],
   )
 
+  /** Grid-snap a point for create/resize/endpoint gestures when snapping is on. */
+  const gridSnap = useCallback(
+    (p: Point): Point => (snapEnabled ? { x: snapToGrid(p.x), y: snapToGrid(p.y) } : p),
+    [snapEnabled],
+  )
+
   const onPointerMove = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (pointersRef.current.has(event.pointerId)) {
+        pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      }
+      // Pinch zoom/pan with two pointers.
+      if (pinchRef.current && pointersRef.current.size >= 2) {
+        const [a, b] = [...pointersRef.current.values()]
+        const dist = Math.hypot(b.x - a.x, b.y - a.y)
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+        const start = pinchRef.current
+        const rect = svgRef.current?.getBoundingClientRect()
+        if (rect && start.dist > 0) {
+          const nextZoom = Math.max(0.1, Math.min(8, (start.camera.zoom * dist) / start.dist))
+          const px = mid.x - rect.left
+          const py = mid.y - rect.top
+          // Anchor on the starting midpoint, plus pan by midpoint drift.
+          const panX = (mid.x - start.mid.x) / nextZoom
+          const panY = (mid.y - start.mid.y) / nextZoom
+          setCamera({
+            zoom: nextZoom,
+            x: start.camera.x + px / start.camera.zoom - px / nextZoom - panX,
+            y: start.camera.y + py / start.camera.zoom - py / nextZoom - panY,
+          })
+        }
+        return
+      }
+
       const gesture = gestureRef.current
       if (gesture.mode === 'none') {
         return
@@ -419,10 +473,10 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setCamera({ ...gesture.startCamera, x: gesture.startCamera.x - dx, y: gesture.startCamera.y - dy })
         return
       }
-      const point = toScene(event.clientX, event.clientY)
+      const rawPoint = toScene(event.clientX, event.clientY)
 
       if (gesture.mode === 'marquee') {
-        const rect = normalizeRect(gesture.start, point)
+        const rect = normalizeRect(gesture.start, rawPoint)
         setMarquee(rect)
         const inside = elementsInMarquee(scene.elements, rect).map((element) => element.id)
         setSelected(gesture.additive ? Array.from(new Set([...gesture.baseSelection, ...inside])) : inside)
@@ -430,35 +484,61 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
 
       if (gesture.mode === 'freedraw') {
-        gesture.points.push(point)
+        gesture.points.push(rawPoint)
       }
       if (gesture.mode === 'arrow') {
-        const target = bindableAt(scene.elements, point, BIND_TOL_PX * scenePerPixel)
+        const target = bindableAt(scene.elements, rawPoint, BIND_TOL_PX * scenePerPixel)
         setBindHighlight(target && target.id !== gesture.id ? target.id : null)
       }
       if (gesture.mode === 'point') {
         const element = scene.elements.find((el) => el.id === gesture.elementId)
         const isEnd = element && (gesture.index === 0 || gesture.index === (isLinear(element) ? element.points.length - 1 : 0))
         if (element?.type === 'arrow' && isEnd) {
-          const target = bindableAt(scene.elements, point, BIND_TOL_PX * scenePerPixel)
+          const target = bindableAt(scene.elements, rawPoint, BIND_TOL_PX * scenePerPixel)
           setBindHighlight(target && target.id !== gesture.elementId ? target.id : null)
         }
       }
+
+      // Snapping: grid for create/resize/endpoints, alignment guides for moves.
+      let point = rawPoint
+      let guides: SnapGuide[] = []
+      if (snapEnabled) {
+        if (gesture.mode === 'create' || gesture.mode === 'arrow' || gesture.mode === 'resize' || gesture.mode === 'point') {
+          point = gridSnap(rawPoint)
+        } else if (gesture.mode === 'move') {
+          const primaryId = [...gesture.ids][0]
+          const primary = gesture.base.elements.find((el) => el.id === primaryId)
+          if (primary) {
+            const b = elementBounds(primary)
+            const moved = { x: b.x + (rawPoint.x - gesture.start.x), y: b.y + (rawPoint.y - gesture.start.y), width: b.width, height: b.height }
+            const others = gesture.base.elements.filter((el) => !gesture.ids.has(el.id)).map(elementBounds)
+            const snap = computeSnap(moved, others, { threshold: 6 * scenePerPixel, grid: SNAP_GRID })
+            point = { x: rawPoint.x + snap.dx, y: rawPoint.y + snap.dy }
+            guides = snap.guides
+          }
+        }
+      }
+      setSnapGuides(guides)
 
       const next = applyGesture(gesture, point)
       if (next) {
         setScene(next)
       }
     },
-    [applyGesture, camera.zoom, scene.elements, scenePerPixel, toScene],
+    [applyGesture, camera, gridSnap, scene.elements, scenePerPixel, snapEnabled, toScene],
   )
 
   const onPointerUp = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      pointersRef.current.delete(event.pointerId)
+      if (pointersRef.current.size < 2) {
+        pinchRef.current = null
+      }
       const gesture = gestureRef.current
       gestureRef.current = { mode: 'none' }
       setMarquee(null)
       setBindHighlight(null)
+      setSnapGuides([])
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId)
       }
@@ -466,7 +546,24 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return
       }
 
-      const point = toScene(event.clientX, event.clientY)
+      const rawPoint = toScene(event.clientX, event.clientY)
+      // Re-apply the same snap as the live drag so the committed result matches.
+      let point = rawPoint
+      if (snapEnabled) {
+        if (gesture.mode === 'create' || gesture.mode === 'arrow' || gesture.mode === 'resize' || gesture.mode === 'point') {
+          point = gridSnap(rawPoint)
+        } else if (gesture.mode === 'move') {
+          const primaryId = [...gesture.ids][0]
+          const primary = gesture.base.elements.find((el) => el.id === primaryId)
+          if (primary) {
+            const b = elementBounds(primary)
+            const moved = { x: b.x + (rawPoint.x - gesture.start.x), y: b.y + (rawPoint.y - gesture.start.y), width: b.width, height: b.height }
+            const others = gesture.base.elements.filter((el) => !gesture.ids.has(el.id)).map(elementBounds)
+            const snap = computeSnap(moved, others, { threshold: 6 * scenePerPixel, grid: SNAP_GRID })
+            point = { x: rawPoint.x + snap.dx, y: rawPoint.y + snap.dy }
+          }
+        }
+      }
       let next = applyGesture(gesture, point)
       if (!next) {
         return
@@ -532,7 +629,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
       commit(next)
     },
-    [applyGesture, commit, scene.elements, scenePerPixel, toScene],
+    [applyGesture, commit, gridSnap, scene.elements, scenePerPixel, snapEnabled, toScene],
   )
 
   const onWheel = useCallback(
@@ -854,6 +951,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         onUndo={undo}
         onRedo={redo}
         onSetView={setDefaultView}
+        snapEnabled={snapEnabled}
+        onToggleSnap={() => setSnapEnabled((value) => !value)}
         onExit={onExit}
       />
       <div className="sketch-body">
@@ -922,6 +1021,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
 
             {marquee && (
               <rect x={marquee.x} y={marquee.y} width={marquee.width} height={marquee.height} fill="var(--sketch-accent, #2563eb)" fillOpacity={0.08} stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} pointerEvents="none" />
+            )}
+
+            {snapGuides.map((guide, i) =>
+              guide.axis === 'x' ? (
+                <line key={i} x1={guide.at} y1={guide.from} x2={guide.at} y2={guide.to} stroke="#f43f5e" strokeWidth={scenePerPixel} pointerEvents="none" />
+              ) : (
+                <line key={i} x1={guide.from} y1={guide.at} x2={guide.to} y2={guide.at} stroke="#f43f5e" strokeWidth={scenePerPixel} pointerEvents="none" />
+              ),
             )}
           </svg>
 

@@ -29,6 +29,8 @@ export interface ToolbarProps {
   onUndo: () => void
   onRedo: () => void
   onSetView: () => void
+  snapEnabled: boolean
+  onToggleSnap: () => void
   onExit?: () => void
 }
 
@@ -46,6 +48,8 @@ export function Toolbar({
   onUndo,
   onRedo,
   onSetView,
+  snapEnabled,
+  onToggleSnap,
   onExit,
 }: ToolbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -132,6 +136,16 @@ export function Toolbar({
         </button>
       </div>
 
+      <button
+        type="button"
+        className="sketch-icon-btn"
+        aria-label="Snap to grid and guides"
+        aria-pressed={snapEnabled}
+        title="Snap to grid and alignment guides"
+        onClick={onToggleSnap}
+      >
+        <Icon name="snap" />
+      </button>
       <button type="button" className="sketch-icon-btn" aria-label="Set read view" title="Set the framing used when reading" onClick={onSetView}>
         <Icon name="set-view" />
       </button>

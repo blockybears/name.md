@@ -13,9 +13,11 @@ import {
   literal,
   normalizeRect,
   parseScene,
+  computeSnap,
   recomputeBindings,
   rectToViewBox,
   resizeRect,
+  snapToGrid,
   sceneContentBounds,
   sceneToSvgString,
   serializeScene,
@@ -301,6 +303,29 @@ test('lines and arrows can carry a midpoint label', () => {
   })
   const svg = sceneToSvgString(scene)
   assert.ok(svg.includes('sends'), 'arrow label rendered')
+})
+
+test('snapToGrid rounds to the nearest grid line', () => {
+  assert.equal(snapToGrid(13, 10), 10)
+  assert.equal(snapToGrid(16, 10), 20)
+  assert.equal(snapToGrid(-4, 10), -0)
+})
+
+test('computeSnap aligns a moving rect to another element edge', () => {
+  const moving = { x: 102, y: 50, width: 40, height: 40 }
+  const other = { x: 100, y: 200, width: 40, height: 40 }
+  const result = computeSnap(moving, [other], { threshold: 6 })
+  // Left edges (102 vs 100) within threshold → dx = -2, with a vertical guide.
+  assert.equal(result.dx, -2)
+  assert.ok(result.guides.some((g) => g.axis === 'x' && g.at === 100))
+})
+
+test('computeSnap falls back to grid when nothing aligns', () => {
+  const moving = { x: 103, y: 207, width: 40, height: 40 }
+  const result = computeSnap(moving, [], { threshold: 6, grid: 10 })
+  assert.equal(result.dx, -3) // 103 -> 100
+  assert.equal(result.dy, 3) // 207 -> 210
+  assert.equal(result.guides.length, 0)
 })
 
 test('flowchart arrows are bound to shapes', () => {
