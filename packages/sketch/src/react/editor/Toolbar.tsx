@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DiagramKind } from '../../core'
 import { DIAGRAM_KINDS } from '../../core'
+import { Icon, type IconName } from './Icon'
 import type { ToolId } from './types'
 
-const tools: Array<{ id: ToolId; label: string; title: string; key: string }> = [
-  { id: 'select', label: '⤢', title: 'Select', key: 'V' },
-  { id: 'rectangle', label: '▭', title: 'Rectangle', key: 'R' },
-  { id: 'ellipse', label: '◯', title: 'Ellipse', key: 'O' },
-  { id: 'diamond', label: '◇', title: 'Diamond', key: 'D' },
-  { id: 'arrow', label: '↗', title: 'Arrow', key: 'A' },
-  { id: 'line', label: '╱', title: 'Line', key: 'L' },
-  { id: 'freedraw', label: '✎', title: 'Draw', key: 'P' },
-  { id: 'text', label: 'T', title: 'Text', key: 'T' },
+const tools: Array<{ id: ToolId; icon: IconName; title: string; key: string }> = [
+  { id: 'select', icon: 'select', title: 'Select', key: 'V' },
+  { id: 'rectangle', icon: 'rectangle', title: 'Rectangle', key: 'R' },
+  { id: 'ellipse', icon: 'ellipse', title: 'Ellipse', key: 'O' },
+  { id: 'diamond', icon: 'diamond', title: 'Diamond', key: 'D' },
+  { id: 'arrow', icon: 'arrow', title: 'Arrow', key: 'A' },
+  { id: 'line', icon: 'line', title: 'Line', key: 'L' },
+  { id: 'freedraw', icon: 'freedraw', title: 'Draw', key: 'P' },
+  { id: 'text', icon: 'text', title: 'Text', key: 'T' },
 ]
 
 export interface ToolbarProps {
@@ -70,11 +71,13 @@ export function Toolbar({
           <button
             key={entry.id}
             type="button"
+            className="sketch-icon-btn"
             aria-pressed={tool === entry.id}
+            aria-label={entry.title}
             title={`${entry.title} (${entry.key})`}
             onClick={() => onTool(entry.id)}
           >
-            {entry.label}
+            <Icon name={entry.icon} />
           </button>
         ))}
       </div>
@@ -82,8 +85,10 @@ export function Toolbar({
       <div className="sketch-topbar-spacer" />
 
       <div className="sketch-diagram-menu" ref={menuRef}>
-        <button type="button" className="sketch-diagram-trigger" onClick={() => setMenuOpen((value) => !value)}>
-          Diagram ▾
+        <button type="button" className="sketch-diagram-trigger" title="Insert a diagram" onClick={() => setMenuOpen((value) => !value)}>
+          <Icon name="diagram" />
+          <span>Diagram</span>
+          <span className="sketch-caret">▾</span>
         </button>
         {menuOpen && (
           <div className="sketch-diagram-dropdown">
@@ -104,31 +109,31 @@ export function Toolbar({
       </div>
 
       <div className="sketch-zoom">
-        <button type="button" title="Zoom out" onClick={onZoomOut}>
-          −
+        <button type="button" className="sketch-icon-btn" aria-label="Zoom out" title="Zoom out" onClick={onZoomOut}>
+          <Icon name="zoom-out" />
         </button>
-        <button type="button" title="Reset zoom" onClick={onZoomReset}>
+        <button type="button" className="sketch-zoom-level" title="Reset zoom" onClick={onZoomReset}>
           {Math.round(zoom * 100)}%
         </button>
-        <button type="button" title="Zoom in" onClick={onZoomIn}>
-          +
+        <button type="button" className="sketch-icon-btn" aria-label="Zoom in" title="Zoom in" onClick={onZoomIn}>
+          <Icon name="zoom-in" />
         </button>
-        <button type="button" title="Fit to content" onClick={onFit}>
-          ⤢fit
+        <button type="button" className="sketch-icon-btn" aria-label="Fit to content" title="Fit to content" onClick={onFit}>
+          <Icon name="fit" />
         </button>
       </div>
 
       <div className="sketch-history">
-        <button type="button" title="Undo (Ctrl/Cmd+Z)" disabled={!canUndo} onClick={onUndo}>
-          ↶
+        <button type="button" className="sketch-icon-btn" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!canUndo} onClick={onUndo}>
+          <Icon name="undo" />
         </button>
-        <button type="button" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!canRedo} onClick={onRedo}>
-          ↷
+        <button type="button" className="sketch-icon-btn" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!canRedo} onClick={onRedo}>
+          <Icon name="redo" />
         </button>
       </div>
 
-      <button type="button" className="sketch-setview" title="Set the framing used when reading" onClick={onSetView}>
-        Set view
+      <button type="button" className="sketch-icon-btn" aria-label="Set read view" title="Set the framing used when reading" onClick={onSetView}>
+        <Icon name="set-view" />
       </button>
       {onExit && (
         <button type="button" className="sketch-done" onClick={onExit}>

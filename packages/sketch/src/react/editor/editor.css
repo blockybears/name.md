@@ -50,6 +50,30 @@
   cursor: default;
 }
 
+.sketch-icon-btn {
+  padding: 0 6px;
+}
+
+.sketch-icon-btn svg {
+  display: block;
+}
+
+.sketch-zoom-level {
+  min-width: 46px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.sketch-diagram-trigger {
+  gap: 5px;
+  padding: 0 10px !important;
+}
+
+.sketch-diagram-trigger .sketch-caret {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
 .sketch-tools,
 .sketch-zoom,
 .sketch-history {
@@ -207,6 +231,16 @@
   background: var(--sketch-accent, #2563eb);
   border-color: var(--sketch-accent, #2563eb);
   color: #fff;
+}
+
+.sketch-segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sketch-segmented svg {
+  display: block;
 }
 
 .sketch-arrowheads {

@@ -1,5 +1,6 @@
 import type { Arrowhead, FillStyle, StrokeStyle } from '../../core'
 import { ColorControl } from './ColorControl'
+import { Icon, type IconName } from './Icon'
 import type { DrawState } from './types'
 
 export type LayerAction = 'front' | 'forward' | 'backward' | 'back' | 'duplicate' | 'delete'
@@ -17,7 +18,8 @@ export interface PropertiesPanelProps {
 
 interface SegOption<T> {
   value: T
-  label: string
+  icon?: IconName
+  label?: string
   title: string
 }
 
@@ -37,10 +39,11 @@ function Segmented<T extends string | number>({
           key={String(option.value)}
           type="button"
           aria-pressed={value === option.value}
+          aria-label={option.title}
           title={option.title}
           onClick={() => onSelect(option.value)}
         >
-          {option.label}
+          {option.icon ? <Icon name={option.icon} size={16} /> : option.label}
         </button>
       ))}
     </div>
@@ -48,39 +51,39 @@ function Segmented<T extends string | number>({
 }
 
 const fillStyleOptions: SegOption<FillStyle>[] = [
-  { value: 'none', label: '∅', title: 'No fill' },
-  { value: 'hachure', label: '▨', title: 'Hachure' },
-  { value: 'solid', label: '■', title: 'Solid' },
+  { value: 'none', icon: 'fill-none', title: 'No fill' },
+  { value: 'hachure', icon: 'fill-hachure', title: 'Hachure' },
+  { value: 'solid', icon: 'fill-solid', title: 'Solid' },
 ]
 
 const strokeWidthOptions: SegOption<number>[] = [
-  { value: 1, label: '┄', title: 'Thin' },
-  { value: 2, label: '─', title: 'Medium' },
-  { value: 4, label: '━', title: 'Bold' },
+  { value: 1, icon: 'width-thin', title: 'Thin' },
+  { value: 2, icon: 'width-medium', title: 'Medium' },
+  { value: 4, icon: 'width-bold', title: 'Bold' },
 ]
 
 const strokeStyleOptions: SegOption<StrokeStyle>[] = [
-  { value: 'solid', label: '──', title: 'Solid' },
-  { value: 'dashed', label: '- -', title: 'Dashed' },
-  { value: 'dotted', label: '···', title: 'Dotted' },
+  { value: 'solid', icon: 'dash-solid', title: 'Solid' },
+  { value: 'dashed', icon: 'dash-dashed', title: 'Dashed' },
+  { value: 'dotted', icon: 'dash-dotted', title: 'Dotted' },
 ]
 
 const sloppinessOptions: SegOption<'clean' | 'soft' | 'sketchy'>[] = [
-  { value: 'clean', label: 'Clean', title: 'Crisp geometry' },
-  { value: 'soft', label: 'Soft', title: 'Lightly hand-drawn' },
-  { value: 'sketchy', label: 'Sketch', title: 'Fully hand-drawn' },
+  { value: 'clean', icon: 'style-clean', title: 'Clean — crisp geometry' },
+  { value: 'soft', icon: 'style-soft', title: 'Soft — lightly hand-drawn' },
+  { value: 'sketchy', icon: 'style-sketchy', title: 'Sketch — fully hand-drawn' },
 ]
 
 const edgeOptions: SegOption<number>[] = [
-  { value: 0, label: '⊏', title: 'Sharp corners' },
-  { value: 16, label: '◜', title: 'Round corners' },
+  { value: 0, icon: 'edge-sharp', title: 'Sharp corners' },
+  { value: 16, icon: 'edge-round', title: 'Round corners' },
 ]
 
 const arrowheadOptions: SegOption<Arrowhead>[] = [
-  { value: 'none', label: '—', title: 'None' },
-  { value: 'arrow', label: '›', title: 'Arrow' },
-  { value: 'triangle', label: '▸', title: 'Triangle' },
-  { value: 'dot', label: '•', title: 'Dot' },
+  { value: 'none', icon: 'head-none', title: 'None' },
+  { value: 'arrow', icon: 'head-arrow', title: 'Arrow' },
+  { value: 'triangle', icon: 'head-triangle', title: 'Triangle' },
+  { value: 'dot', icon: 'head-dot', title: 'Dot' },
 ]
 
 export function PropertiesPanel({
@@ -188,28 +191,28 @@ export function PropertiesPanel({
           <div className="sketch-prop-row">
             <span className="sketch-prop-label">Layers</span>
             <div className="sketch-segmented">
-              <button type="button" title="Send to back" onClick={() => onAction('back')}>
-                ⤓
+              <button type="button" aria-label="Send to back" title="Send to back" onClick={() => onAction('back')}>
+                <Icon name="layer-back" size={16} />
               </button>
-              <button type="button" title="Send backward" onClick={() => onAction('backward')}>
-                ↓
+              <button type="button" aria-label="Send backward" title="Send backward" onClick={() => onAction('backward')}>
+                <Icon name="layer-backward" size={16} />
               </button>
-              <button type="button" title="Bring forward" onClick={() => onAction('forward')}>
-                ↑
+              <button type="button" aria-label="Bring forward" title="Bring forward" onClick={() => onAction('forward')}>
+                <Icon name="layer-forward" size={16} />
               </button>
-              <button type="button" title="Bring to front" onClick={() => onAction('front')}>
-                ⤒
+              <button type="button" aria-label="Bring to front" title="Bring to front" onClick={() => onAction('front')}>
+                <Icon name="layer-front" size={16} />
               </button>
             </div>
           </div>
           <div className="sketch-prop-row">
             <span className="sketch-prop-label">Actions</span>
             <div className="sketch-segmented">
-              <button type="button" title="Duplicate" onClick={() => onAction('duplicate')}>
-                ⧉
+              <button type="button" aria-label="Duplicate" title="Duplicate" onClick={() => onAction('duplicate')}>
+                <Icon name="duplicate" size={16} />
               </button>
-              <button type="button" title="Delete" onClick={() => onAction('delete')}>
-                🗑
+              <button type="button" aria-label="Delete" title="Delete" onClick={() => onAction('delete')}>
+                <Icon name="delete" size={16} />
               </button>
             </div>
           </div>
