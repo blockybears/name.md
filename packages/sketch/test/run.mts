@@ -403,6 +403,61 @@ test('mermaidToElements parses nodes, shapes and bound edges', () => {
   assert.ok(sceneToSvgString(scene).startsWith('<svg'))
 })
 
+test('mermaid sequence diagram → actors, lifelines, message arrows', () => {
+  const code = 'sequenceDiagram\n participant U as User\n participant S as Server\n U->>S: request\n S-->>U: response'
+  const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const rects = elements.filter((e) => e.type === 'rectangle')
+  const lines = elements.filter((e) => e.type === 'line')
+  const arrows = elements.filter((e) => e.type === 'arrow')
+  assert.equal(rects.length, 2, 'two actor boxes')
+  assert.equal(lines.length, 2, 'two lifelines')
+  assert.equal(arrows.length, 2, 'two messages')
+  assert.ok(arrows.some((a) => a.label === 'request'))
+  assert.ok(sceneToSvgString(createScene({ elements })).startsWith('<svg'))
+})
+
+test('mermaid state diagram maps [*] to start/end ellipses', () => {
+  const code = 'stateDiagram-v2\n [*] --> Idle\n Idle --> Running: go\n Running --> [*]'
+  const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const ellipses = elements.filter((e) => e.type === 'ellipse')
+  const arrows = elements.filter((e) => e.type === 'arrow')
+  assert.ok(ellipses.length >= 2, 'start + end ellipses')
+  assert.ok(arrows.some((a) => a.label === 'go'))
+})
+
+test('mermaid pie renders editable polygon sectors', () => {
+  const elements = mermaidToElements('pie title Pets\n "Dogs" : 60\n "Cats" : 40', { x: 0, y: 0 }, 'clean')
+  const polys = elements.filter((e) => e.type === 'polygon')
+  assert.equal(polys.length, 2, 'one polygon per slice')
+  assert.ok(elements.some((e) => e.type === 'text' && e.text.includes('Dogs')))
+})
+
+test('mermaid class diagram builds class boxes + relations', () => {
+  const code = 'classDiagram\n class Animal {\n +int age\n +makeSound()\n }\n Animal <|-- Dog'
+  const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const rects = elements.filter((e) => e.type === 'rectangle')
+  const arrows = elements.filter((e) => e.type === 'arrow')
+  assert.ok(rects.some((r) => r.label?.includes('Animal') && r.label?.includes('age')))
+  assert.equal(arrows.length, 1)
+})
+
+test('mermaid gantt builds task bars', () => {
+  const code = 'gantt\n title Plan\n section Build\n Research :3d\n Design :2d\n Ship :1d'
+  const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const bars = elements.filter((e) => e.type === 'rectangle')
+  assert.equal(bars.length, 3)
+  assert.ok(elements.some((e) => e.type === 'text' && e.text === 'Research'))
+})
+
+test('mermaid mindmap builds a tree', () => {
+  const code = 'mindmap\n  root((Idea))\n    Branch A\n    Branch B'
+  const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const shapes = elements.filter((e) => e.type !== 'arrow')
+  const arrows = elements.filter((e) => e.type === 'arrow')
+  assert.equal(shapes.length, 3)
+  assert.equal(arrows.length, 2)
+})
+
 test('jsonToElements builds a tree of nodes + connectors', () => {
   const elements = jsonToElements('{"name":"x","items":[1,2],"ok":true}', { x: 0, y: 0 }, 'clean')
   const shapes = elements.filter((e) => e.type !== 'arrow')

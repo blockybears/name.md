@@ -27,17 +27,30 @@ export interface NodeBox {
   height: number
 }
 
-const NODE_W = 150
-const NODE_H = 64
-const GAP_MAIN = 70
-const GAP_CROSS = 36
+export interface LayoutOptions {
+  nodeWidth?: number
+  nodeHeight?: number
+  gapMain?: number
+  gapCross?: number
+}
+
+const DEFAULTS = { nodeWidth: 150, nodeHeight: 64, gapMain: 70, gapCross: 36 }
 
 /**
  * Layered ("Sugiyama-lite") layout: rank nodes by longest path from a root and
  * place each rank in a column (LR/RL) or row (TD/TB/BT). Good enough for
  * flowcharts and JSON trees; everything stays editable afterwards.
  */
-export function layeredLayout(nodes: GraphNode[], edges: GraphEdge[], direction: LayoutDirection): Map<string, NodeBox> {
+export function layeredLayout(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  direction: LayoutDirection,
+  options: LayoutOptions = {},
+): Map<string, NodeBox> {
+  const NODE_W = options.nodeWidth ?? DEFAULTS.nodeWidth
+  const NODE_H = options.nodeHeight ?? DEFAULTS.nodeHeight
+  const GAP_MAIN = options.gapMain ?? DEFAULTS.gapMain
+  const GAP_CROSS = options.gapCross ?? DEFAULTS.gapCross
   const rank = new Map<string, number>()
   for (const node of nodes) {
     rank.set(node.id, 0)
