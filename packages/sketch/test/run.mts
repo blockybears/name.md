@@ -361,6 +361,14 @@ test('normalizeVertexBounds re-derives bbox from points', () => {
   assert.deepEqual(next.points[0], { x: 0, y: 0 })
 })
 
+test('pretty-printed scene JSON round-trips (code view)', () => {
+  const scene = createScene({ elements: [createElement({ type: 'rectangle', x: 5, y: 6, width: 20, height: 10, id: 'r' })] })
+  const pretty = JSON.stringify(JSON.parse(serializeScene(scene)), null, 2)
+  const back = parseScene(pretty)
+  assert.equal(back.elements.length, 1)
+  assert.equal(back.elements[0].width, 20)
+})
+
 test('flowchart arrows are bound to shapes', () => {
   const elements = createDiagram('flowchart', { x: 0, y: 0 }, 'clean')
   const arrows = elements.filter((el) => el.type === 'arrow') as ArrowElement[]

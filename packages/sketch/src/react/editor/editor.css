@@ -135,6 +135,70 @@
   min-height: 0;
 }
 
+.sketch-body[hidden] {
+  display: none;
+}
+
+/* ---- code (JSON) view ---- */
+.sketch-code-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--sketch-canvas, #fff);
+}
+
+.sketch-code-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
+  font-size: 12px;
+  color: var(--sketch-muted, #6b7280);
+}
+
+.sketch-code-spacer {
+  flex: 1;
+}
+
+.sketch-code-error {
+  color: #e11d48;
+  font-family: var(--sketch-mono, monospace);
+}
+
+.sketch-code-bar button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
+  border-radius: 6px;
+  background: var(--sketch-control-bg, #fff);
+  color: var(--sketch-foreground, #1f2933);
+  cursor: pointer;
+}
+
+.sketch-code-bar .sketch-code-apply {
+  background: var(--sketch-accent, #2563eb);
+  border-color: var(--sketch-accent, #2563eb);
+  color: #fff;
+}
+
+.sketch-code-text {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 12px;
+  background: var(--sketch-canvas, #fff);
+  color: var(--sketch-foreground, #1f2933);
+  font-family: var(--sketch-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
 .sketch-canvas {
   position: relative;
   flex: 1;

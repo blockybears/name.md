@@ -31,6 +31,8 @@ export interface ToolbarProps {
   onSetView: () => void
   snapEnabled: boolean
   onToggleSnap: () => void
+  codeOpen: boolean
+  onToggleCode: () => void
   onExit?: () => void
 }
 
@@ -50,6 +52,8 @@ export function Toolbar({
   onSetView,
   snapEnabled,
   onToggleSnap,
+  codeOpen,
+  onToggleCode,
   onExit,
 }: ToolbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -145,6 +149,16 @@ export function Toolbar({
         onClick={onToggleSnap}
       >
         <Icon name="snap" />
+      </button>
+      <button
+        type="button"
+        className="sketch-icon-btn"
+        aria-label="Code view"
+        aria-pressed={codeOpen}
+        title="View / edit as JSON"
+        onClick={onToggleCode}
+      >
+        <Icon name="code" />
       </button>
       <button type="button" className="sketch-icon-btn" aria-label="Set read view" title="Set the framing used when reading" onClick={onSetView}>
         <Icon name="set-view" />

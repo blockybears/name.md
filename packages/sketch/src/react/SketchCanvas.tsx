@@ -38,6 +38,8 @@ import {
   isLinear,
   moveElement,
   normalizeRect,
+  parseScene,
+  serializeScene,
   toPolygon,
   recomputeBindings,
   rectToViewBox,
@@ -122,6 +124,9 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   const [reshaping, setReshaping] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ left: number; top: number; elementId: string } | null>(null)
+  const [codeOpen, setCodeOpen] = useState(false)
+  const [codeText, setCodeText] = useState('')
+  const [codeError, setCodeError] = useState<string | null>(null)
   const pointersRef = useRef<Map<number, Point>>(new Map())
   const pinchRef = useRef<{ dist: number; mid: Point; camera: Camera } | null>(null)
   const [editingText, setEditingText] = useState<{ id: string; value: string; isLabel: boolean } | null>(null)
@@ -739,6 +744,29 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     setContextMenu(null)
   }, [])
 
+  // --- code (JSON) view ---
+  const toggleCode = useCallback(() => {
+    setCodeOpen((open) => {
+      if (!open) {
+        setCodeText(JSON.stringify(JSON.parse(serializeScene(scene)), null, 2))
+        setCodeError(null)
+      }
+      return !open
+    })
+  }, [scene])
+
+  const applyCode = useCallback(() => {
+    try {
+      JSON.parse(codeText)
+    } catch (error) {
+      setCodeError((error as Error).message)
+      return
+    }
+    commit(parseScene(codeText))
+    setCodeError(null)
+    setCodeOpen(false)
+  }, [codeText, commit])
+
   const contextElement = contextMenu ? scene.elements.find((el) => el.id === contextMenu.elementId) ?? null : null
   const contextCanReshape =
     contextElement != null &&
@@ -1012,9 +1040,35 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         onSetView={setDefaultView}
         snapEnabled={snapEnabled}
         onToggleSnap={() => setSnapEnabled((value) => !value)}
+        codeOpen={codeOpen}
+        onToggleCode={toggleCode}
         onExit={onExit}
       />
-      <div className="sketch-body">
+      {codeOpen && (
+        <div className="sketch-code-view">
+          <div className="sketch-code-bar">
+            <span>Scene JSON</span>
+            {codeError && <span className="sketch-code-error">{codeError}</span>}
+            <span className="sketch-code-spacer" />
+            <button type="button" onClick={() => setCodeOpen(false)}>
+              Cancel
+            </button>
+            <button type="button" className="sketch-code-apply" onClick={applyCode}>
+              Apply
+            </button>
+          </div>
+          <textarea
+            className="sketch-code-text"
+            spellCheck={false}
+            value={codeText}
+            onChange={(event) => {
+              setCodeText(event.target.value)
+              setCodeError(null)
+            }}
+          />
+        </div>
+      )}
+      <div className="sketch-body" hidden={codeOpen}>
         <div ref={containerRef} className={`sketch-canvas ${className ?? ''}`}>
           <svg
             ref={svgRef}
