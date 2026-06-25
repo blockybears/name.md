@@ -458,6 +458,71 @@ test('mermaid mindmap builds a tree', () => {
   assert.equal(arrows.length, 2)
 })
 
+test('mermaid journey → task boxes with arrows', () => {
+  const els = mermaidToElements('journey\n title My Day\n section Morning\n  Wake: 3: Me\n  Coffee: 5: Me\n section Work\n  Code: 4: Me', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type === 'rectangle').length === 3)
+  assert.ok(els.filter((e) => e.type === 'arrow').length === 2)
+  assert.ok(els.some((e) => e.type === 'text' && e.text === 'My Day'))
+})
+
+test('mermaid timeline → axis, period dots and event boxes', () => {
+  const els = mermaidToElements('timeline\n title History\n 2002 : LinkedIn\n 2004 : Facebook : Google', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type === 'ellipse').length === 2, 'two period dots')
+  assert.ok(els.filter((e) => e.type === 'rectangle').length === 2, 'two event boxes')
+})
+
+test('mermaid quadrant → frame, axes and data points', () => {
+  const els = mermaidToElements('quadrantChart\n title Reach\n x-axis Low --> High\n quadrant-1 Expand\n A: [0.3, 0.6]\n B: [0.7, 0.2]', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type === 'rectangle').length >= 1, 'frame')
+  assert.ok(els.filter((e) => e.type === 'ellipse').length === 2, 'two points')
+  assert.ok(els.some((e) => e.type === 'text' && e.text === 'Expand'))
+})
+
+test('mermaid gitGraph → commit circles and links', () => {
+  const els = mermaidToElements('gitGraph\n commit\n branch dev\n checkout dev\n commit\n checkout main\n merge dev', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type === 'ellipse').length === 3, 'three commits')
+  assert.ok(els.filter((e) => e.type === 'line').length >= 2, 'links')
+})
+
+test('mermaid sankey → nodes + value-weighted connectors', () => {
+  const els = mermaidToElements('sankey-beta\nA,B,10\nB,C,5', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type === 'rectangle').length === 3)
+  const arrows = els.filter((e) => e.type === 'arrow')
+  assert.ok(arrows.length === 2)
+  assert.ok(arrows.some((a) => a.strokeWidth > arrows.find((b) => b.label === '5')!.strokeWidth - 0.001))
+})
+
+test('mermaid xychart → axes, bars and line points', () => {
+  const els = mermaidToElements('xychart-beta\n title "Sales"\n x-axis [jan, feb, mar]\n bar [30, 60, 90]\n line [20, 50, 80]', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type === 'rectangle').length === 3, 'three bars')
+  assert.ok(els.filter((e) => e.type === 'ellipse').length === 3, 'three line points')
+  assert.ok(els.filter((e) => e.type === 'line').length >= 2, 'axes + segments')
+})
+
+test('mermaid requirement → requirement/element boxes + relation', () => {
+  const els = mermaidToElements('requirementDiagram\n requirement test_req {\n id: 1\n text: works\n }\n element ent {\n type: sim\n }\n ent - satisfies -> test_req', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type === 'rectangle').length === 2)
+  assert.ok(els.filter((e) => e.type === 'arrow').length === 1)
+})
+
+test('mermaid kanban → columns and cards', () => {
+  const els = mermaidToElements('kanban\n  Todo\n    Task A\n    Task B\n  Doing\n    Task C', { x: 0, y: 0 }, 'clean')
+  // 2 columns + 3 cards = 5 rectangles
+  assert.ok(els.filter((e) => e.type === 'rectangle').length === 5)
+})
+
+test('mermaid class deepening: generics and annotations', () => {
+  const els = mermaidToElements('classDiagram\n class Box~T~ {\n <<interface>>\n +T value\n }\n Box~T~ <|-- IntBox', { x: 0, y: 0 }, 'clean')
+  const rects = els.filter((e) => e.type === 'rectangle')
+  assert.ok(rects.some((r) => r.label?.includes('Box<T>')), 'generic rendered')
+  assert.ok(rects.some((r) => r.label?.includes('«interface»')), 'annotation rendered')
+})
+
+test('mermaid unknown diagram falls back to edge extraction', () => {
+  const els = mermaidToElements('block-beta\n A --> B\n B --> C', { x: 0, y: 0 }, 'clean')
+  assert.ok(els.filter((e) => e.type !== 'arrow').length >= 2)
+})
+
 test('jsonToElements builds a tree of nodes + connectors', () => {
   const elements = jsonToElements('{"name":"x","items":[1,2],"ok":true}', { x: 0, y: 0 }, 'clean')
   const shapes = elements.filter((e) => e.type !== 'arrow')
