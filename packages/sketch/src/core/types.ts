@@ -27,7 +27,7 @@ export type FillStyle = 'none' | 'solid' | 'hachure'
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted'
 export type TextAlign = 'left' | 'center' | 'right'
 export type Arrowhead = 'none' | 'arrow' | 'triangle' | 'dot'
-export type ElementType = 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw' | 'text'
+export type ElementType = 'rectangle' | 'ellipse' | 'diamond' | 'polygon' | 'line' | 'arrow' | 'freedraw' | 'text'
 
 /** A binding from an arrow endpoint to another element.
  *  - focus: -1..1 position offset across the target, for fanning out connectors
@@ -72,6 +72,12 @@ export interface EllipseElement extends ElementBase {
 export interface DiamondElement extends ElementBase {
   type: 'diamond'
 }
+/** Free polygon with arbitrary editable vertices (rect/diamond convert to this
+ *  for reshaping). Points are relative to (x, y); the shape is closed. */
+export interface PolygonElement extends ElementBase {
+  type: 'polygon'
+  points: Point[]
+}
 export interface LineElement extends ElementBase {
   type: 'line'
   /** Vertices relative to (x, y). */
@@ -101,6 +107,7 @@ export type SketchElement =
   | RectElement
   | EllipseElement
   | DiamondElement
+  | PolygonElement
   | LineElement
   | ArrowElement
   | FreedrawElement
@@ -110,6 +117,13 @@ export type LinearElement = LineElement | ArrowElement | FreedrawElement
 
 export function isLinear(element: SketchElement): element is LinearElement {
   return element.type === 'line' || element.type === 'arrow' || element.type === 'freedraw'
+}
+
+export type VertexElement = LinearElement | PolygonElement
+
+/** Elements whose `points` array can be edited vertex-by-vertex. */
+export function hasVertices(element: SketchElement): element is VertexElement {
+  return isLinear(element) || element.type === 'polygon'
 }
 
 // ---------------------------------------------------------------------------

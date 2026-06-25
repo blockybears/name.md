@@ -78,6 +78,11 @@ function diamondPolygon(width: number, height: number): Point[] {
   ]
 }
 
+function closedPolylinePath(points: Point[]): string {
+  const open = polylinePath(points)
+  return open ? `${open} Z` : ''
+}
+
 function cleanOutline(element: SketchElement): string {
   switch (element.type) {
     case 'rectangle':
@@ -86,6 +91,8 @@ function cleanOutline(element: SketchElement): string {
       return ellipsePath(element.width, element.height)
     case 'diamond':
       return diamondPath(element.width, element.height)
+    case 'polygon':
+      return closedPolylinePath(element.points)
     case 'line':
     case 'arrow':
     case 'freedraw':
@@ -107,6 +114,8 @@ function sketchyOutline(element: SketchElement, rng: () => number): string {
       return roughPolyline(rectPolygon(element.width, element.height), rng, true, roughness)
     case 'diamond':
       return roughPolyline(diamondPolygon(element.width, element.height), rng, true, roughness)
+    case 'polygon':
+      return roughPolyline(element.points, rng, true, roughness)
     case 'ellipse': {
       const jitterAmount = Math.min(3, 1 + (element.width + element.height) / 160) * (roughness / 1.3)
       return roughClosedCurve(ellipsePoints(element.width, element.height), rng, jitterAmount)
@@ -129,6 +138,8 @@ function fillRegionPath(element: SketchElement): string | null {
       return ellipsePath(element.width, element.height)
     case 'diamond':
       return diamondPath(element.width, element.height)
+    case 'polygon':
+      return closedPolylinePath(element.points)
     default:
       return null
   }
@@ -140,6 +151,8 @@ function hachureSegments(element: SketchElement): Array<[Point, Point]> | null {
       return hachurePolygon(rectPolygon(element.width, element.height))
     case 'diamond':
       return hachurePolygon(diamondPolygon(element.width, element.height))
+    case 'polygon':
+      return hachurePolygon(element.points)
     case 'ellipse':
       return hachureEllipse(element.width, element.height)
     default:
@@ -305,7 +318,7 @@ function elementShapes(element: SketchElement): RenderShape[] {
       cx = (mid.x + prev.x) / 2
       cy = (mid.y + prev.y) / 2
       backdrop = true
-    } else if (!(element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond')) {
+    } else if (!(element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond' || element.type === 'polygon')) {
       return shapes
     }
     const startY = cy - ((lines.length - 1) * lineHeight) / 2

@@ -30,6 +30,7 @@ import {
   generateId,
   generateSeed,
   handlePositions,
+  hasVertices,
   hitTest,
   History,
   identityCamera,
@@ -37,6 +38,7 @@ import {
   isLinear,
   moveElement,
   normalizeRect,
+  toPolygon,
   recomputeBindings,
   rectToViewBox,
   RESIZE_HANDLES,
@@ -118,6 +120,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [bindHighlight, setBindHighlight] = useState<string | null>(null)
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
+  const [reshaping, setReshaping] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ left: number; top: number; elementId: string } | null>(null)
   const pointersRef = useRef<Map<number, Point>>(new Map())
   const pinchRef = useRef<{ dist: number; mid: Point; camera: Camera } | null>(null)
   const [editingText, setEditingText] = useState<{ id: string; value: string; isLabel: boolean } | null>(null)
@@ -181,15 +185,20 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     return unionRects(selectedElements.map(elementBounds))
   }, [selectedElements])
   const singleSelected = selectedElements.length === 1 ? selectedElements[0] : null
-  // Lines and arrows get draggable endpoint handles instead of a resize box.
-  const editablePolyline = singleSelected && (singleSelected.type === 'line' || singleSelected.type === 'arrow') ? singleSelected : null
-  const canResize = singleSelected != null && singleSelected.angle === 0 && !editablePolyline
+  // Lines/arrows always get endpoint handles; polygons/freedraw get vertex
+  // handles only while reshaping (otherwise they use the resize box).
+  const vertexTarget =
+    singleSelected &&
+    (singleSelected.type === 'line' || singleSelected.type === 'arrow' || (reshaping && hasVertices(singleSelected)))
+      ? singleSelected
+      : null
+  const canResize = singleSelected != null && singleSelected.angle === 0 && !vertexTarget
 
   // --- properties panel context ---
   const selTypes = useMemo(() => new Set(selectedElements.map((element) => element.type)), [selectedElements])
   const fillableActive =
     selectedElements.length > 0
-      ? selectedElements.some((element) => ['rectangle', 'ellipse', 'diamond'].includes(element.type))
+      ? selectedElements.some((element) => ['rectangle', 'ellipse', 'diamond', 'polygon'].includes(element.type))
       : ['rectangle', 'ellipse', 'diamond'].includes(tool)
   const edgesActive = selectedElements.length > 0 ? selTypes.has('rectangle') : tool === 'rectangle'
   const arrowActive = selectedElements.length > 0 ? selTypes.has('arrow') : tool === 'arrow'
@@ -263,7 +272,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return {
           ...gesture.base,
           elements: gesture.base.elements.map((element) => {
-            if (element.id !== gesture.elementId || !isLinear(element)) {
+            if (element.id !== gesture.elementId || !hasVertices(element)) {
               return element
             }
             const abs = element.points.map((p) => ({ x: element.x + p.x, y: element.y + p.y }))
@@ -310,6 +319,10 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       if (editingText) {
         return
       }
+      if (event.button === 2) {
+        return // right-click handled by onContextMenu
+      }
+      setContextMenu(null)
       event.currentTarget.setPointerCapture(event.pointerId)
       pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
 
@@ -380,12 +393,12 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
 
       // select tool — endpoint handles for a selected line/arrow take priority.
-      if (editablePolyline) {
+      if (vertexTarget) {
         const tol = HANDLE_PX * scenePerPixel
-        for (let i = 0; i < editablePolyline.points.length; i += 1) {
-          const abs = { x: editablePolyline.x + editablePolyline.points[i].x, y: editablePolyline.y + editablePolyline.points[i].y }
+        for (let i = 0; i < vertexTarget.points.length; i += 1) {
+          const abs = { x: vertexTarget.x + vertexTarget.points[i].x, y: vertexTarget.y + vertexTarget.points[i].y }
           if (Math.hypot(point.x - abs.x, point.y - abs.y) <= tol) {
-            gestureRef.current = { mode: 'point', elementId: editablePolyline.id, index: i, base: scene }
+            gestureRef.current = { mode: 'point', elementId: vertexTarget.id, index: i, base: scene }
             return
           }
         }
@@ -426,7 +439,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setSelected([])
       }
     },
-    [camera, canResize, draw, editablePolyline, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, spaceDown, tool, toScene],
+    [camera, canResize, draw, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, spaceDown, tool, toScene],
   )
 
   /** Grid-snap a point for create/resize/endpoint gestures when snapping is on. */
@@ -687,6 +700,50 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     [editLabelOf, scene.elements, scenePerPixel, selected, toScene],
   )
 
+  // --- right-click context menu + reshape ---
+  const onContextMenu = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      event.preventDefault()
+      const rect = containerRef.current?.getBoundingClientRect()
+      const point = toScene(event.clientX, event.clientY)
+      const hit = hitTest(scene.elements, point, HIT_TOL_PX * scenePerPixel)
+      if (!hit || !rect) {
+        setContextMenu(null)
+        return
+      }
+      setSelected([hit.id])
+      setContextMenu({ left: event.clientX - rect.left, top: event.clientY - rect.top, elementId: hit.id })
+    },
+    [containerRef, scene.elements, scenePerPixel, toScene],
+  )
+
+  const enterReshape = useCallback(
+    (id: string) => {
+      const element = scene.elements.find((el) => el.id === id)
+      if (!element) {
+        return
+      }
+      if (element.type === 'rectangle' || element.type === 'diamond') {
+        const poly = toPolygon(element)
+        commit({ ...scene, elements: scene.elements.map((el) => (el.id === id ? poly : el)) })
+      }
+      setSelected([id])
+      setReshaping(true)
+      setContextMenu(null)
+    },
+    [commit, scene],
+  )
+
+  const exitReshape = useCallback(() => {
+    setReshaping(false)
+    setContextMenu(null)
+  }, [])
+
+  const contextElement = contextMenu ? scene.elements.find((el) => el.id === contextMenu.elementId) ?? null : null
+  const contextCanReshape =
+    contextElement != null &&
+    (hasVertices(contextElement) || contextElement.type === 'rectangle' || contextElement.type === 'diamond')
+
   const commitEditingText = useCallback(() => {
     if (!editingText) {
       return
@@ -879,6 +936,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       } else if (event.key === 'Escape') {
         setSelected([])
         setTool('select')
+        setReshaping(false)
+        setContextMenu(null)
       } else {
         const map: Record<string, ToolId> = { v: 'select', r: 'rectangle', o: 'ellipse', d: 'diamond', a: 'arrow', l: 'line', p: 'freedraw', t: 'text' }
         const next = map[event.key.toLowerCase()]
@@ -966,6 +1025,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onDoubleClick={onDoubleClick}
+            onContextMenu={onContextMenu}
             onWheel={onWheel}
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -986,13 +1046,13 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               />
             )}
 
-            {editablePolyline ? (
+            {vertexTarget ? (
               <g pointerEvents="none">
-                {editablePolyline.points.map((p, i) => (
+                {vertexTarget.points.map((p, i) => (
                   <circle
                     key={i}
-                    cx={editablePolyline.x + p.x}
-                    cy={editablePolyline.y + p.y}
+                    cx={vertexTarget.x + p.x}
+                    cy={vertexTarget.y + p.y}
                     r={handleSize / 2}
                     fill="#fff"
                     stroke="var(--sketch-accent, #2563eb)"
@@ -1048,6 +1108,33 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
                 }
               }}
             />
+          )}
+
+          {contextMenu && (
+            <div className="sketch-context-menu" style={{ left: contextMenu.left, top: contextMenu.top }}>
+              {contextCanReshape &&
+                (reshaping ? (
+                  <button type="button" onClick={exitReshape}>
+                    Done reshaping
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => enterReshape(contextMenu.elementId)}>
+                    Edit points
+                  </button>
+                ))}
+              <button type="button" onClick={() => { onLayerAction('front'); setContextMenu(null) }}>
+                Bring to front
+              </button>
+              <button type="button" onClick={() => { onLayerAction('back'); setContextMenu(null) }}>
+                Send to back
+              </button>
+              <button type="button" onClick={() => { onLayerAction('duplicate'); setContextMenu(null) }}>
+                Duplicate
+              </button>
+              <button type="button" className="sketch-context-danger" onClick={() => { onLayerAction('delete'); setContextMenu(null) }}>
+                Delete
+              </button>
+            </div>
           )}
         </div>
 

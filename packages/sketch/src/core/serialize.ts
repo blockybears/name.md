@@ -51,7 +51,7 @@ export function parseScene(text: string): Scene {
   })
 }
 
-const elementTypes: ElementType[] = ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text']
+const elementTypes: ElementType[] = ['rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow', 'freedraw', 'text']
 const fillStyles: FillStyle[] = ['none', 'solid', 'hachure']
 const strokeStyles: StrokeStyle[] = ['solid', 'dashed', 'dotted']
 const arrowheads: Arrowhead[] = ['none', 'arrow', 'triangle', 'dot']
@@ -168,7 +168,7 @@ function coerceElement(value: unknown): SketchElement | null {
       endBinding: coerceBinding(data.endBinding),
     } as unknown as SketchElement
   }
-  if (type === 'line' || type === 'freedraw') {
+  if (type === 'line' || type === 'freedraw' || type === 'polygon') {
     return { ...base, points: coercePoints(data.points) } as unknown as SketchElement
   }
   if (type === 'text') {

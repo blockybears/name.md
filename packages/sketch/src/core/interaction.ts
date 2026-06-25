@@ -1,4 +1,4 @@
-import { elementBounds, rectCenter, rotatePoint } from './geometry'
+import { elementBounds, pointInPolygon, rectCenter, rotatePoint } from './geometry'
 import { isLinear } from './types'
 import type { Point, Rect, SketchElement } from './types'
 
@@ -30,6 +30,18 @@ export function elementHit(element: SketchElement, point: Point, tolerance: numb
   if (isLinear(element)) {
     for (let i = 0; i < element.points.length - 1; i += 1) {
       if (distanceToSegment(local, element.points[i], element.points[i + 1]) <= tolerance + element.strokeWidth) {
+        return true
+      }
+    }
+    return false
+  }
+  if (element.type === 'polygon') {
+    if (pointInPolygon(local, element.points)) {
+      return true
+    }
+    for (let i = 0; i < element.points.length; i += 1) {
+      const next = element.points[(i + 1) % element.points.length]
+      if (distanceToSegment(local, element.points[i], next) <= tolerance + element.strokeWidth) {
         return true
       }
     }

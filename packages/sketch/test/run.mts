@@ -23,6 +23,9 @@ import {
   serializeScene,
   simplifyPoints,
   token,
+  toPolygon,
+  normalizeVertexBounds,
+  pointInPolygon,
   viewBoxForScene,
   type ArrowElement,
 } from '../src/index.ts'
@@ -326,6 +329,36 @@ test('computeSnap falls back to grid when nothing aligns', () => {
   assert.equal(result.dx, -3) // 103 -> 100
   assert.equal(result.dy, 3) // 207 -> 210
   assert.equal(result.guides.length, 0)
+})
+
+test('toPolygon converts a rectangle to 4 corner vertices', () => {
+  const rect = createElement({ type: 'rectangle', x: 10, y: 20, width: 100, height: 60, id: 'r' })
+  const poly = toPolygon(rect)
+  assert.equal(poly.type, 'polygon')
+  assert.equal(poly.points.length, 4)
+  assert.deepEqual(poly.points[2], { x: 100, y: 60 })
+})
+
+test('pointInPolygon detects inside vs outside', () => {
+  const square = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]
+  assert.equal(pointInPolygon({ x: 5, y: 5 }, square), true)
+  assert.equal(pointInPolygon({ x: 15, y: 5 }, square), false)
+})
+
+test('polygon is hit-tested by its interior and round-trips + renders', () => {
+  const poly = createElement({ type: 'polygon', x: 0, y: 0, width: 100, height: 100, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 100 }], fillStyle: 'solid', id: 'p' })
+  assert.equal(hitTest([poly], { x: 50, y: 30 }, 4)?.id, 'p')
+  const scene = createScene({ elements: [poly] })
+  const parsed = parseScene(serializeScene(scene))
+  assert.equal(parsed.elements[0].type, 'polygon')
+  assert.ok(sceneToSvgString(scene).includes('<path'))
+})
+
+test('normalizeVertexBounds re-derives bbox from points', () => {
+  const el = { x: 0, y: 0, width: 10, height: 10, points: [{ x: 5, y: 5 }, { x: 25, y: 35 }] }
+  const next = normalizeVertexBounds(el)
+  assert.deepEqual({ x: next.x, y: next.y, width: next.width, height: next.height }, { x: 5, y: 5, width: 20, height: 30 })
+  assert.deepEqual(next.points[0], { x: 0, y: 0 })
 })
 
 test('flowchart arrows are bound to shapes', () => {

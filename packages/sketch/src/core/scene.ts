@@ -1,5 +1,5 @@
 import { token } from './types'
-import type { DrawStyle, ElementBase, ElementType, Scene, SketchElement } from './types'
+import type { DrawStyle, ElementBase, ElementType, Point, PolygonElement, Scene, SketchElement } from './types'
 
 let idCounter = 0
 
@@ -58,7 +58,7 @@ export function createElement(props: ElementInput, style: DrawStyle = 'sketchy')
   const merged = { ...base, ...props } as Record<string, unknown>
 
   // Ensure type-specific required fields exist so the renderer never crashes.
-  if (props.type === 'line' || props.type === 'arrow' || props.type === 'freedraw') {
+  if (props.type === 'line' || props.type === 'arrow' || props.type === 'freedraw' || props.type === 'polygon') {
     merged.points = (props as { points?: unknown }).points ?? [
       { x: 0, y: 0 },
       { x: merged.width as number, y: merged.height as number },
@@ -95,4 +95,54 @@ export function updateElement(scene: Scene, id: string, patch: Partial<SketchEle
 
 export function removeElements(scene: Scene, ids: Set<string>): Scene {
   return { ...scene, elements: scene.elements.filter((element) => !ids.has(element.id)) }
+}
+
+/** Re-derive x/y/width/height from a vertex element's points (points stay
+ *  relative to the element origin). Call after editing individual vertices. */
+export function normalizeVertexBounds<T extends { x: number; y: number; width: number; height: number; points: Point[] }>(
+  element: T,
+): T {
+  if (element.points.length === 0) {
+    return element
+  }
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of element.points) {
+    minX = Math.min(minX, p.x)
+    minY = Math.min(minY, p.y)
+    maxX = Math.max(maxX, p.x)
+    maxY = Math.max(maxY, p.y)
+  }
+  return {
+    ...element,
+    x: element.x + minX,
+    y: element.y + minY,
+    width: maxX - minX,
+    height: maxY - minY,
+    points: element.points.map((p) => ({ x: p.x - minX, y: p.y - minY })),
+  }
+}
+
+/** Convert a rectangle or diamond into an equivalent editable polygon. */
+export function toPolygon(element: SketchElement): PolygonElement {
+  const w = element.width
+  const h = element.height
+  const points: Point[] =
+    element.type === 'diamond'
+      ? [
+          { x: w / 2, y: 0 },
+          { x: w, y: h / 2 },
+          { x: w / 2, y: h },
+          { x: 0, y: h / 2 },
+        ]
+      : [
+          { x: 0, y: 0 },
+          { x: w, y: 0 },
+          { x: w, y: h },
+          { x: 0, y: h },
+        ]
+  const base = element as ElementBase
+  return { ...base, type: 'polygon', points, roundness: 0 }
 }

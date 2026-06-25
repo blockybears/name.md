@@ -76,3 +76,16 @@ export function padRect(rect: Rect, padding: number): Rect {
 export function pointInRect(point: Point, rect: Rect): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height
 }
+
+/** Ray-casting point-in-polygon test (polygon points in the same frame as point). */
+export function pointInPolygon(point: Point, polygon: Point[]): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const a = polygon[i]
+    const b = polygon[j]
+    if (a.y > point.y !== b.y > point.y && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x) {
+      inside = !inside
+    }
+  }
+  return inside
+}
