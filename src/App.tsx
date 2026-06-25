@@ -30,10 +30,8 @@ import {
   ListTree,
   Minus,
   Moon,
-  Network,
   NotebookTabs,
   PenTool,
-  Share2,
   Pilcrow,
   Quote,
   Redo2,
@@ -1852,38 +1850,6 @@ function App() {
       .run()
   }, [editor, tableActive])
 
-  const insertMermaid = useCallback(() => {
-    if (!editor || tableActive) {
-      return
-    }
-
-    editor
-      .chain()
-      .focus()
-      .insertContent({
-        type: 'mermaidDiagram',
-        attrs: { code: 'flowchart TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Do thing]\n  B -->|No| D[Skip]' },
-      })
-      .run()
-  }, [editor, tableActive])
-
-  const insertJsonFlow = useCallback(() => {
-    if (!editor || tableActive) {
-      return
-    }
-
-    editor
-      .chain()
-      .focus()
-      .insertContent({
-        type: 'jsonFlow',
-        attrs: {
-          code: JSON.stringify({ name: 'example', items: [1, 2, 3], nested: { ok: true } }, null, 2),
-        },
-      })
-      .run()
-  }, [editor, tableActive])
-
   const insertSketch = useCallback(() => {
     if (!editor || tableActive) {
       return
@@ -2230,8 +2196,6 @@ function App() {
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
             <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
             <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
-            <ToolbarMenuItem icon={Network} label="Insert Mermaid diagram" disabled={tableActive} onClick={() => runToolbarAction(insertMermaid)} />
-            <ToolbarMenuItem icon={Share2} label="Insert JSON flow graph" disabled={tableActive} onClick={() => runToolbarAction(insertJsonFlow)} />
             <ToolbarMenuItem icon={PenTool} label="Insert drawing / diagram" disabled={tableActive} onClick={() => runToolbarAction(insertSketch)} />
           </ToolbarDropdown>
         </nav>
@@ -2327,8 +2291,6 @@ function App() {
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
             <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
             <ToolbarMenuItem icon={Info} label="Insert callout" disabled={tableActive} onClick={() => runToolbarAction(insertCallout)} />
-            <ToolbarMenuItem icon={Network} label="Insert Mermaid diagram" disabled={tableActive} onClick={() => runToolbarAction(insertMermaid)} />
-            <ToolbarMenuItem icon={Share2} label="Insert JSON flow graph" disabled={tableActive} onClick={() => runToolbarAction(insertJsonFlow)} />
             <ToolbarMenuItem icon={PenTool} label="Insert drawing / diagram" disabled={tableActive} onClick={() => runToolbarAction(insertSketch)} />
             <ToolbarMenuItem icon={Link2} label="Insert link" onClick={() => runToolbarAction(insertLink)} />
             <ToolbarMenuItem icon={Image} label="Insert image" disabled={tableActive} onClick={() => runToolbarAction(insertImage)} />
