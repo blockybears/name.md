@@ -361,6 +361,13 @@ test('normalizeVertexBounds re-derives bbox from points', () => {
   assert.deepEqual(next.points[0], { x: 0, y: 0 })
 })
 
+test('sketchy rectangle keeps rounded corners (uses arcs, not 4 corners)', () => {
+  const sharp = sceneToSvgString(createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 60, roundness: 0, style: 'sketchy', seed: 5, id: 's' })] }))
+  const round = sceneToSvgString(createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 60, roundness: 16, style: 'sketchy', seed: 5, id: 'r' })] }))
+  // The rounded version samples more perimeter points → a longer path string.
+  assert.ok(round.length > sharp.length, 'rounded sketchy rect should have a richer outline')
+})
+
 test('pretty-printed scene JSON round-trips (code view)', () => {
   const scene = createScene({ elements: [createElement({ type: 'rectangle', x: 5, y: 6, width: 20, height: 10, id: 'r' })] })
   const pretty = JSON.stringify(JSON.parse(serializeScene(scene)), null, 2)

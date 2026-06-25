@@ -1,6 +1,6 @@
 import { viewBoxForScene, rectToViewBox } from '../camera'
 import { resolveColor } from '../color'
-import { diamondPath, ellipsePath, polylinePath, rectPath } from './shapes'
+import { diamondPath, ellipsePath, polylinePath, rectPath, roundedRectPoints } from './shapes'
 import {
   ellipsePoints,
   hachureEllipse,
@@ -111,7 +111,14 @@ function sketchyOutline(element: SketchElement, rng: () => number): string {
   const roughness = roughnessFor(element.style)
   switch (element.type) {
     case 'rectangle':
-      return roughPolyline(rectPolygon(element.width, element.height), rng, true, roughness)
+      return roughPolyline(
+        element.roundness > 0
+          ? roundedRectPoints(element.width, element.height, element.roundness)
+          : rectPolygon(element.width, element.height),
+        rng,
+        true,
+        roughness,
+      )
     case 'diamond':
       return roughPolyline(diamondPolygon(element.width, element.height), rng, true, roughness)
     case 'polygon':
@@ -148,7 +155,11 @@ function fillRegionPath(element: SketchElement): string | null {
 function hachureSegments(element: SketchElement): Array<[Point, Point]> | null {
   switch (element.type) {
     case 'rectangle':
-      return hachurePolygon(rectPolygon(element.width, element.height))
+      return hachurePolygon(
+        element.roundness > 0
+          ? roundedRectPoints(element.width, element.height, element.roundness)
+          : rectPolygon(element.width, element.height),
+      )
     case 'diamond':
       return hachurePolygon(diamondPolygon(element.width, element.height))
     case 'polygon':

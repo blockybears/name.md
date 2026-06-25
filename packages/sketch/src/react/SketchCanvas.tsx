@@ -39,6 +39,7 @@ import {
   moveElement,
   normalizeRect,
   parseScene,
+  rotatePoint,
   serializeScene,
   toPolygon,
   recomputeBindings,
@@ -179,17 +180,23 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   )
 
   const selectedElements = useMemo(() => scene.elements.filter((element) => selected.includes(element.id)), [scene.elements, selected])
+  const singleSelected = selectedElements.length === 1 ? selectedElements[0] : null
+  // For a single element the selection box is its local (pre-rotation) box, and
+  // the overlay is rotated to match; for multi-selection it's the AABB union.
   const selectionRect = useMemo<Rect | null>(() => {
     if (selectedElements.length === 0) {
       return null
     }
-    if (selectedElements.length === 1 && selectedElements[0].angle === 0) {
-      const el = selectedElements[0]
-      return { x: el.x, y: el.y, width: el.width, height: el.height }
+    if (singleSelected) {
+      return { x: singleSelected.x, y: singleSelected.y, width: singleSelected.width, height: singleSelected.height }
     }
     return unionRects(selectedElements.map(elementBounds))
-  }, [selectedElements])
-  const singleSelected = selectedElements.length === 1 ? selectedElements[0] : null
+  }, [selectedElements, singleSelected])
+  const selectionAngle = singleSelected?.angle ?? 0
+  const selectionCenter = useMemo<Point | null>(
+    () => (selectionRect ? { x: selectionRect.x + selectionRect.width / 2, y: selectionRect.y + selectionRect.height / 2 } : null),
+    [selectionRect],
+  )
   // Lines/arrows always get endpoint handles; polygons/freedraw get vertex
   // handles only while reshaping (otherwise they use the resize box).
   const vertexTarget =
@@ -197,7 +204,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     (singleSelected.type === 'line' || singleSelected.type === 'arrow' || (reshaping && hasVertices(singleSelected)))
       ? singleSelected
       : null
-  const canResize = singleSelected != null && singleSelected.angle === 0 && !vertexTarget
+  const canResize = singleSelected != null && !vertexTarget
 
   // --- properties panel context ---
   const selTypes = useMemo(() => new Set(selectedElements.map((element) => element.type)), [selectedElements])
@@ -267,10 +274,27 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         if (!baseElement) {
           return null
         }
-        const nextRect = resizeRect(gesture.baseRect, gesture.handle, point)
+        const theta = baseElement.angle
+        const baseRect = gesture.baseRect
+        const center = { x: baseRect.x + baseRect.width / 2, y: baseRect.y + baseRect.height / 2 }
+        // Resize in the element's un-rotated frame.
+        const localPointer = theta ? rotatePoint(point, center, -theta) : point
+        const nextRect = resizeRect(baseRect, gesture.handle, localPointer)
+        let updated = applyResize(baseElement, nextRect)
+        if (theta) {
+          // Keep the edge/corner opposite the handle fixed in world space.
+          const fixed = {
+            x: gesture.handle.includes('w') ? baseRect.x + baseRect.width : gesture.handle.includes('e') ? baseRect.x : center.x,
+            y: gesture.handle.includes('n') ? baseRect.y + baseRect.height : gesture.handle.includes('s') ? baseRect.y : center.y,
+          }
+          const newCenter = { x: nextRect.x + nextRect.width / 2, y: nextRect.y + nextRect.height / 2 }
+          const before = rotatePoint(fixed, center, theta)
+          const after = rotatePoint(fixed, newCenter, theta)
+          updated = { ...updated, x: updated.x + (before.x - after.x), y: updated.y + (before.y - after.y) }
+        }
         return recomputeBindings({
           ...gesture.base,
-          elements: gesture.base.elements.map((element) => (element.id === gesture.elementId ? applyResize(baseElement, nextRect) : element)),
+          elements: gesture.base.elements.map((element) => (element.id === gesture.elementId ? updated : element)),
         })
       }
       case 'point': {
@@ -280,6 +304,23 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             if (element.id !== gesture.elementId || !hasVertices(element)) {
               return element
             }
+            const isEnd = gesture.index === 0 || gesture.index === element.points.length - 1
+            const cleared = element.type === 'arrow' && isEnd
+              ? gesture.index === 0
+                ? { startBinding: undefined }
+                : { endBinding: undefined }
+              : {}
+            if (element.angle) {
+              // Rotated: edit the vertex in the local frame and keep the box
+              // (and rotation center) fixed so the other vertices don't drift.
+              const center = { x: element.x + element.width / 2, y: element.y + element.height / 2 }
+              const local = rotatePoint(point, center, -element.angle)
+              const points = element.points.map((p, i) =>
+                i === gesture.index ? { x: local.x - element.x, y: local.y - element.y } : p,
+              )
+              return { ...element, ...cleared, points }
+            }
+            // Axis-aligned: move the vertex and re-fit the bounding box.
             const abs = element.points.map((p) => ({ x: element.x + p.x, y: element.y + p.y }))
             abs[gesture.index] = point
             let minX = Infinity
@@ -288,12 +329,6 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               minX = Math.min(minX, p.x)
               minY = Math.min(minY, p.y)
             }
-            const isEnd = gesture.index === 0 || gesture.index === element.points.length - 1
-            const cleared = element.type === 'arrow' && isEnd
-              ? gesture.index === 0
-                ? { startBinding: undefined }
-                : { endBinding: undefined }
-              : {}
             return { ...element, ...cleared, x: minX, y: minY, width: Math.max(...abs.map((p) => p.x)) - minX, height: Math.max(...abs.map((p) => p.y)) - minY, points: abs.map((p) => ({ x: p.x - minX, y: p.y - minY })) }
           }),
         }
@@ -397,12 +432,16 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return
       }
 
-      // select tool — endpoint handles for a selected line/arrow take priority.
+      // Handle hit-testing happens in the element's un-rotated local frame so
+      // handles can be grabbed wherever the rotation has placed them.
+      const localPoint = selectionAngle && selectionCenter ? rotatePoint(point, selectionCenter, -selectionAngle) : point
+
+      // Vertex handles for a selected line/arrow (or polygon/freedraw while reshaping).
       if (vertexTarget) {
         const tol = HANDLE_PX * scenePerPixel
         for (let i = 0; i < vertexTarget.points.length; i += 1) {
           const abs = { x: vertexTarget.x + vertexTarget.points[i].x, y: vertexTarget.y + vertexTarget.points[i].y }
-          if (Math.hypot(point.x - abs.x, point.y - abs.y) <= tol) {
+          if (Math.hypot(localPoint.x - abs.x, localPoint.y - abs.y) <= tol) {
             gestureRef.current = { mode: 'point', elementId: vertexTarget.id, index: i, base: scene }
             return
           }
@@ -412,14 +451,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       if (canResize && selectionRect) {
         const tol = HIT_TOL_PX * scenePerPixel
         const rotate = { x: selectionRect.x + selectionRect.width / 2, y: selectionRect.y - ROTATE_OFFSET_PX * scenePerPixel }
-        if (Math.hypot(point.x - rotate.x, point.y - rotate.y) <= HANDLE_PX * scenePerPixel) {
+        if (Math.hypot(localPoint.x - rotate.x, localPoint.y - rotate.y) <= HANDLE_PX * scenePerPixel) {
           gestureRef.current = { mode: 'rotate', elementId: selectedElements[0].id, base: scene }
           return
         }
         const handles = handlePositions(selectionRect)
         for (const handle of RESIZE_HANDLES) {
           const pos = handles[handle]
-          if (Math.abs(point.x - pos.x) <= tol && Math.abs(point.y - pos.y) <= tol) {
+          if (Math.abs(localPoint.x - pos.x) <= tol && Math.abs(localPoint.y - pos.y) <= tol) {
             gestureRef.current = { mode: 'resize', handle, elementId: selectedElements[0].id, baseRect: selectionRect, base: scene }
             return
           }
@@ -444,7 +483,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setSelected([])
       }
     },
-    [camera, canResize, draw, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, spaceDown, tool, toScene],
+    [camera, canResize, draw, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
   )
 
   /** Grid-snap a point for create/resize/endpoint gestures when snapping is on. */
@@ -990,6 +1029,10 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   // --- overlay geometry ---
   const handleSize = HANDLE_PX * scenePerPixel
   const rotatePos = selectionRect ? { x: selectionRect.x + selectionRect.width / 2, y: selectionRect.y - ROTATE_OFFSET_PX * scenePerPixel } : null
+  // The selection overlay is drawn in the element's local frame and rotated to
+  // match, so handles sit on the rotated shape.
+  const selectionTransform =
+    selectionAngle && selectionCenter ? `rotate(${(selectionAngle * 180) / Math.PI} ${selectionCenter.x} ${selectionCenter.y})` : undefined
   const bindRect = useMemo(() => {
     if (!bindHighlight) {
       return null
@@ -1101,7 +1144,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             )}
 
             {vertexTarget ? (
-              <g pointerEvents="none">
+              <g pointerEvents="none" transform={selectionTransform}>
                 {vertexTarget.points.map((p, i) => (
                   <circle
                     key={i}
@@ -1116,7 +1159,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               </g>
             ) : (
               selectionRect && (
-                <g pointerEvents="none">
+                <g pointerEvents="none" transform={selectionTransform}>
                   <rect x={selectionRect.x} y={selectionRect.y} width={selectionRect.width} height={selectionRect.height} fill="none" stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} strokeDasharray={`${4 * scenePerPixel} ${3 * scenePerPixel}`} />
                   {rotatePos && (
                     <>
