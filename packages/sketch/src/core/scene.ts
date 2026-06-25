@@ -19,7 +19,7 @@ export function createScene(partial: Partial<Scene> = {}): Scene {
     version: 1,
     elements: partial.elements ?? [],
     background: partial.background ?? token('canvas'),
-    defaultStyle: partial.defaultStyle ?? 'sketchy',
+    defaultStyle: partial.defaultStyle ?? 'soft',
     defaultView: partial.defaultView ?? null,
   }
 }

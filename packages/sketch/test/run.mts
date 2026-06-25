@@ -137,6 +137,20 @@ test('clean vs sketchy produce different geometry', () => {
   assert.ok(sceneToSvgString(sketchy).includes('C'))
 })
 
+test('soft style is hand-drawn but lighter than sketchy', () => {
+  const make = (style: 'clean' | 'soft' | 'sketchy') =>
+    sceneToSvgString(createScene({ elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 50, style, seed: 99, id: 'r' })] }))
+  const clean = make('clean')
+  const soft = make('soft')
+  const sketchy = make('sketchy')
+  // Soft uses curves (hand-drawn) unlike clean...
+  assert.ok(soft.includes('C'), 'soft should use bezier curves')
+  assert.ok(!clean.includes(' C'), 'clean should not')
+  // ...but differs from sketchy (different jitter, single vs double stroke).
+  assert.notEqual(soft, sketchy)
+  assert.notEqual(soft, clean)
+})
+
 test('hachure fill emits fill-colored stroke lines', () => {
   const scene = createScene({
     elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 80, fillStyle: 'hachure', fill: literal('#00f'), style: 'clean', id: 'h' })],

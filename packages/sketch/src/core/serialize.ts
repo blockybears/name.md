@@ -77,7 +77,7 @@ function str(value: unknown, fallback: string): string {
 }
 
 function coerceStyle(value: unknown): DrawStyle {
-  return value === 'clean' ? 'clean' : 'sketchy'
+  return value === 'clean' || value === 'soft' || value === 'sketchy' ? value : 'sketchy'
 }
 
 function coerceColor(value: unknown): SketchColor | undefined {

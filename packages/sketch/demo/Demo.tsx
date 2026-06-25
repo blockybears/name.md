@@ -20,7 +20,7 @@ function sampleScene(style: DrawStyle) {
 export function Demo() {
   const [theme, setTheme] = useState<Theme>('light')
   const [mode, setMode] = useState<'read' | 'edit'>('edit')
-  const [scene, setScene] = useState<Scene>(() => sampleScene('sketchy'))
+  const [scene, setScene] = useState<Scene>(() => sampleScene('soft'))
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme

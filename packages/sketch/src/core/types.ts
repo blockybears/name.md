@@ -21,7 +21,8 @@ export const literal = (value: string): SketchColor => ({ kind: 'literal', value
 // Elements
 // ---------------------------------------------------------------------------
 
-export type DrawStyle = 'clean' | 'sketchy'
+/** Rendering character: crisp geometry, lightly hand-drawn, or fully sketchy. */
+export type DrawStyle = 'clean' | 'soft' | 'sketchy'
 export type FillStyle = 'none' | 'solid' | 'hachure'
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted'
 export type TextAlign = 'left' | 'center' | 'right'

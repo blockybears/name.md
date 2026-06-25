@@ -95,19 +95,25 @@ function cleanOutline(element: SketchElement): string {
   }
 }
 
+// Jitter strength per style. 'clean' never reaches here.
+function roughnessFor(style: SketchElement['style']): number {
+  return style === 'soft' ? 0.55 : 1.3
+}
+
 function sketchyOutline(element: SketchElement, rng: () => number): string {
+  const roughness = roughnessFor(element.style)
   switch (element.type) {
     case 'rectangle':
-      return roughPolyline(rectPolygon(element.width, element.height), rng, true)
+      return roughPolyline(rectPolygon(element.width, element.height), rng, true, roughness)
     case 'diamond':
-      return roughPolyline(diamondPolygon(element.width, element.height), rng, true)
+      return roughPolyline(diamondPolygon(element.width, element.height), rng, true, roughness)
     case 'ellipse': {
-      const jitterAmount = Math.min(3, 1 + (element.width + element.height) / 160)
+      const jitterAmount = Math.min(3, 1 + (element.width + element.height) / 160) * (roughness / 1.3)
       return roughClosedCurve(ellipsePoints(element.width, element.height), rng, jitterAmount)
     }
     case 'line':
     case 'arrow':
-      return roughPolyline(element.points, rng, false)
+      return roughPolyline(element.points, rng, false, roughness)
     case 'freedraw':
       return polylinePath(element.points)
     default:
@@ -212,7 +218,7 @@ function elementShapes(element: SketchElement): RenderShape[] {
 
   const shapes: RenderShape[] = []
   const rng = makeRng(element.seed)
-  const sketchy = element.style === 'sketchy'
+  const sketchy = element.style !== 'clean'
 
   // Fill (drawn behind the outline) — uses the independent fill opacity.
   if (element.fillStyle === 'solid') {
@@ -223,7 +229,7 @@ function elementShapes(element: SketchElement): RenderShape[] {
   } else if (element.fillStyle === 'hachure') {
     const segments = hachureSegments(element)
     if (segments && segments.length > 0) {
-      const d = sketchy ? hachurePath(segments, rng) : segmentsToPath(segments)
+      const d = sketchy ? hachurePath(segments, rng, roughnessFor(element.style)) : segmentsToPath(segments)
       shapes.push({
         kind: 'path',
         d,

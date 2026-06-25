@@ -65,9 +65,10 @@ const strokeStyleOptions: SegOption<StrokeStyle>[] = [
   { value: 'dotted', label: '···', title: 'Dotted' },
 ]
 
-const sloppinessOptions: SegOption<'clean' | 'sketchy'>[] = [
+const sloppinessOptions: SegOption<'clean' | 'soft' | 'sketchy'>[] = [
   { value: 'clean', label: 'Clean', title: 'Crisp geometry' },
-  { value: 'sketchy', label: 'Sketch', title: 'Hand-drawn' },
+  { value: 'soft', label: 'Soft', title: 'Lightly hand-drawn' },
+  { value: 'sketchy', label: 'Sketch', title: 'Fully hand-drawn' },
 ]
 
 const edgeOptions: SegOption<number>[] = [

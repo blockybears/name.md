@@ -4,7 +4,6 @@ import type { Point } from '../types'
 // "rough"). Everything is driven by a per-element seed so output is stable
 // across re-renders — essential for a steady read-only view.
 
-const ROUGHNESS = 1.4
 const HACHURE_GAP = 8
 const HACHURE_ANGLE = Math.PI / 4
 
@@ -28,8 +27,8 @@ function jitter(rng: () => number, amount: number): number {
   return (rng() * 2 - 1) * amount
 }
 
-function wobbleAmount(length: number): number {
-  return Math.min(4, 1 + length / 50) * ROUGHNESS
+function wobbleAmount(length: number, roughness: number): number {
+  return Math.min(4, 1 + length / 50) * roughness
 }
 
 /** A single wobbly stroke from a→b as a cubic bezier with perturbed controls. */
@@ -45,22 +44,28 @@ function stroke(x1: number, y1: number, x2: number, y2: number, rng: () => numbe
   return `M${f(sx)} ${f(sy)} C${f(cx1)} ${f(cy1)} ${f(cx2)} ${f(cy2)} ${f(ex)} ${f(ey)}`
 }
 
-/** A double-struck wobbly edge (the characteristic hand-drawn look). */
-export function roughEdge(a: Point, b: Point, rng: () => number): string {
-  const amount = wobbleAmount(Math.hypot(b.x - a.x, b.y - a.y))
-  return `${stroke(a.x, a.y, b.x, b.y, rng, amount)} ${stroke(a.x, a.y, b.x, b.y, rng, amount)}`
+/** A double-struck wobbly edge (the characteristic hand-drawn look).
+ *  `roughness` scales the jitter (≈0.55 soft, ≈1.3 sketchy); the second pass
+ *  is dropped at low roughness so the soft style stays cleaner. */
+export function roughEdge(a: Point, b: Point, rng: () => number, roughness = 1.3): string {
+  const amount = wobbleAmount(Math.hypot(b.x - a.x, b.y - a.y), roughness)
+  const first = stroke(a.x, a.y, b.x, b.y, rng, amount)
+  if (roughness < 0.8) {
+    return first
+  }
+  return `${first} ${stroke(a.x, a.y, b.x, b.y, rng, amount)}`
 }
 
-export function roughPolyline(points: Point[], rng: () => number, closed: boolean): string {
+export function roughPolyline(points: Point[], rng: () => number, closed: boolean, roughness = 1.3): string {
   if (points.length < 2) {
     return ''
   }
   const segments: string[] = []
   for (let i = 0; i < points.length - 1; i += 1) {
-    segments.push(roughEdge(points[i], points[i + 1], rng))
+    segments.push(roughEdge(points[i], points[i + 1], rng, roughness))
   }
   if (closed) {
-    segments.push(roughEdge(points[points.length - 1], points[0], rng))
+    segments.push(roughEdge(points[points.length - 1], points[0], rng, roughness))
   }
   return segments.join(' ')
 }
@@ -152,6 +157,6 @@ export function hachureEllipse(width: number, height: number, gap = HACHURE_GAP,
   return hachurePolygon(polygon, gap, angle)
 }
 
-export function hachurePath(segments: Array<[Point, Point]>, rng: () => number): string {
-  return segments.map(([a, b]) => roughEdge(a, b, rng)).join(' ')
+export function hachurePath(segments: Array<[Point, Point]>, rng: () => number, roughness = 1.3): string {
+  return segments.map(([a, b]) => roughEdge(a, b, rng, roughness)).join(' ')
 }
