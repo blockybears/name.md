@@ -33,6 +33,8 @@ export interface ToolbarProps {
   onToggleSnap: () => void
   codeOpen: boolean
   onToggleCode: () => void
+  panelOpen: boolean
+  onTogglePanel: () => void
   onExit?: () => void
 }
 
@@ -54,6 +56,8 @@ export function Toolbar({
   onToggleSnap,
   codeOpen,
   onToggleCode,
+  panelOpen,
+  onTogglePanel,
   onExit,
 }: ToolbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -159,6 +163,16 @@ export function Toolbar({
         onClick={onToggleCode}
       >
         <Icon name="code" />
+      </button>
+      <button
+        type="button"
+        className="sketch-icon-btn"
+        aria-label="Properties panel"
+        aria-pressed={panelOpen}
+        title="Show / hide properties"
+        onClick={onTogglePanel}
+      >
+        <Icon name="sliders" />
       </button>
       <button type="button" className="sketch-icon-btn" aria-label="Set read view" title="Set the framing used when reading" onClick={onSetView}>
         <Icon name="set-view" />

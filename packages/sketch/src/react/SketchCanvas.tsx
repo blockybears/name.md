@@ -128,6 +128,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [codeOpen, setCodeOpen] = useState(false)
   const [codeText, setCodeText] = useState('')
   const [codeError, setCodeError] = useState<string | null>(null)
+  // Collapse the properties panel by default on small (mobile) viewports.
+  const [panelOpen, setPanelOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 640)
   const pointersRef = useRef<Map<number, Point>>(new Map())
   const pinchRef = useRef<{ dist: number; mid: Point; camera: Camera } | null>(null)
   const [editingText, setEditingText] = useState<{ id: string; value: string; isLabel: boolean } | null>(null)
@@ -167,6 +169,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const viewRect = useMemo(() => cameraViewRect(camera, size.width, size.height), [camera, size])
   const rendered = useMemo(() => renderScene(scene, { viewBox: viewRect }), [scene, viewRect])
   const scenePerPixel = 1 / camera.zoom
+  const isNarrow = size.width > 1 && size.width < 640
 
   const toScene = useCallback(
     (clientX: number, clientY: number): Point => {
@@ -1085,6 +1088,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         onToggleSnap={() => setSnapEnabled((value) => !value)}
         codeOpen={codeOpen}
         onToggleCode={toggleCode}
+        panelOpen={panelOpen}
+        onTogglePanel={() => setPanelOpen((value) => !value)}
         onExit={onExit}
       />
       {codeOpen && (
@@ -1233,18 +1238,22 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               </button>
             </div>
           )}
-        </div>
 
-        <PropertiesPanel
-          draw={draw}
-          hasSelection={selected.length > 0}
-          showFill={fillableActive}
-          showEdges={edgesActive}
-          showArrowheads={arrowActive}
-          showText={textActive}
-          onChange={onDrawChange}
-          onAction={onLayerAction}
-        />
+          {panelOpen && (
+            <PropertiesPanel
+              draw={draw}
+              hasSelection={selected.length > 0}
+              showFill={fillableActive}
+              showEdges={edgesActive}
+              showArrowheads={arrowActive}
+              showText={textActive}
+              narrow={isNarrow}
+              onChange={onDrawChange}
+              onAction={onLayerAction}
+              onClose={() => setPanelOpen(false)}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

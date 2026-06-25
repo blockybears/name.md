@@ -43,6 +43,9 @@ export type IconName =
   | 'code'
   | 'reshape'
   | 'snap'
+  | 'sliders'
+  | 'import'
+  | 'close'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -221,6 +224,24 @@ function paths(name: IconName) {
           <path d="M5 4h4M15 4h4" />
         </>
       )
+    case 'sliders':
+      return (
+        <>
+          <path d="M4 8h10M18 8h2M4 16h2M10 16h10" />
+          <circle cx="16" cy="8" r="2.2" fill="currentColor" />
+          <circle cx="8" cy="16" r="2.2" fill="currentColor" />
+        </>
+      )
+    case 'import':
+      return (
+        <>
+          <path d="M12 3v11" />
+          <path d="M8 10l4 4 4-4" />
+          <path d="M5 19h14" />
+        </>
+      )
+    case 'close':
+      return <path d="M6 6l12 12M18 6L6 18" />
     case 'reshape':
       return (
         <>

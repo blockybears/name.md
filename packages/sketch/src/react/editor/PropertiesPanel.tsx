@@ -12,8 +12,10 @@ export interface PropertiesPanelProps {
   showEdges: boolean
   showArrowheads: boolean
   showText: boolean
+  narrow?: boolean
   onChange: (patch: Partial<DrawState>) => void
   onAction: (action: LayerAction) => void
+  onClose?: () => void
 }
 
 interface SegOption<T> {
@@ -93,11 +95,21 @@ export function PropertiesPanel({
   showEdges,
   showArrowheads,
   showText,
+  narrow,
   onChange,
   onAction,
+  onClose,
 }: PropertiesPanelProps) {
   return (
-    <aside className="sketch-properties" aria-label="Drawing properties">
+    <aside className={narrow ? 'sketch-properties is-narrow' : 'sketch-properties'} aria-label="Drawing properties">
+      {onClose && (
+        <div className="sketch-prop-header">
+          <span>Properties</span>
+          <button type="button" className="sketch-prop-close" aria-label="Close panel" title="Close" onClick={onClose}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      )}
       <div className="sketch-prop-group">
         <ColorControl label="Stroke" value={draw.stroke} onChange={(stroke) => onChange({ stroke })} />
         {showFill && (

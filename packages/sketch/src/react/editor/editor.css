@@ -278,17 +278,62 @@
   z-index: 4;
 }
 
-/* ---- properties panel ---- */
+/* ---- properties panel (floating overlay) ---- */
 .sketch-properties {
-  width: 220px;
-  flex: 0 0 220px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: 208px;
+  z-index: 3;
   overflow-y: auto;
   padding: 10px;
-  border-left: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
+  border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
+  border-radius: 12px;
   background: var(--sketch-panel-bg, rgba(250, 250, 250, 0.96));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(6px);
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* On narrow viewports the panel becomes a bottom sheet. */
+.sketch-properties.is-narrow {
+  top: auto;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: auto;
+  max-height: 55%;
+}
+
+.sketch-prop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sketch-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sketch-prop-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sketch-foreground, #1f2933);
+  cursor: pointer;
+}
+
+.sketch-prop-close:hover {
+  background: var(--sketch-hover, rgba(127, 127, 127, 0.14));
 }
 
 .sketch-prop-group {
