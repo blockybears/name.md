@@ -60,7 +60,7 @@ import {
 import { RenderedScene } from './RenderedScene'
 import { Icon } from './editor/Icon'
 import { Toolbar } from './editor/Toolbar'
-import { PropertiesPanel, type LayerAction } from './editor/PropertiesPanel'
+import { PropertiesBar, type LayerAction } from './editor/PropertiesBar'
 import { defaultDrawState, type DrawState, type ToolId } from './editor/types'
 import './editor/editor.css'
 
@@ -175,7 +175,6 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const viewRect = useMemo(() => cameraViewRect(camera, size.width, size.height), [camera, size])
   const rendered = useMemo(() => renderScene(scene, { viewBox: viewRect }), [scene, viewRect])
   const scenePerPixel = 1 / camera.zoom
-  const isNarrow = size.width > 1 && size.width < 640
 
   const toScene = useCallback(
     (clientX: number, clientY: number): Point => {
@@ -1297,17 +1296,15 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
           )}
 
           {panelOpen && (
-            <PropertiesPanel
+            <PropertiesBar
               draw={draw}
               hasSelection={selected.length > 0}
               showFill={fillableActive}
               showEdges={edgesActive}
               showArrowheads={arrowActive}
               showText={textActive}
-              narrow={isNarrow}
               onChange={onDrawChange}
               onAction={onLayerAction}
-              onClose={() => setPanelOpen(false)}
             />
           )}
         </div>

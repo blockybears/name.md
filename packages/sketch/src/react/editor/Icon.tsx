@@ -46,6 +46,7 @@ export type IconName =
   | 'sliders'
   | 'import'
   | 'close'
+  | 'opacity'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -242,6 +243,13 @@ function paths(name: IconName) {
       )
     case 'close':
       return <path d="M6 6l12 12M18 6L6 18" />
+    case 'opacity':
+      return (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" />
+        </>
+      )
     case 'reshape':
       return (
         <>
