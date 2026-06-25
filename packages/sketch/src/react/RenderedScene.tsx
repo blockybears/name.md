@@ -6,7 +6,7 @@ export function RenderedScene({ elements }: { elements: RenderElement[] }) {
   return (
     <>
       {elements.map((element) => (
-        <g key={element.id} transform={element.transform} opacity={element.opacity}>
+        <g key={element.id} transform={element.transform}>
           {element.shapes.map((shape, index) =>
             shape.kind === 'path' ? (
               <path
@@ -16,6 +16,7 @@ export function RenderedScene({ elements }: { elements: RenderElement[] }) {
                 strokeWidth={shape.strokeWidth}
                 fill={shape.fill}
                 strokeDasharray={shape.dash}
+                opacity={shape.opacity}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -29,6 +30,7 @@ export function RenderedScene({ elements }: { elements: RenderElement[] }) {
                 textAnchor={shape.anchor}
                 dominantBaseline={shape.baseline === 'middle' ? 'central' : undefined}
                 fill={shape.fill}
+                opacity={shape.opacity}
               >
                 {shape.text}
               </text>

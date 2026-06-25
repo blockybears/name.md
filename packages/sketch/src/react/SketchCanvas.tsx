@@ -30,6 +30,7 @@ import {
   History,
   identityCamera,
   isBindable,
+  isLinear,
   moveElement,
   normalizeRect,
   recomputeBindings,
@@ -57,6 +58,7 @@ type Gesture =
   | { mode: 'freedraw'; id: string; start: Point; points: Point[]; base: Scene }
   | { mode: 'move'; start: Point; ids: Set<string>; base: Scene }
   | { mode: 'resize'; handle: ResizeHandle; elementId: string; baseRect: Rect; base: Scene }
+  | { mode: 'point'; elementId: string; index: number; base: Scene }
   | { mode: 'rotate'; elementId: string; base: Scene }
   | { mode: 'marquee'; start: Point; additive: boolean; baseSelection: string[]; base: Scene }
 
@@ -170,7 +172,10 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     }
     return unionRects(selectedElements.map(elementBounds))
   }, [selectedElements])
-  const canResize = selectedElements.length === 1 && selectedElements[0].angle === 0
+  const singleSelected = selectedElements.length === 1 ? selectedElements[0] : null
+  // Lines and arrows get draggable endpoint handles instead of a resize box.
+  const editablePolyline = singleSelected && (singleSelected.type === 'line' || singleSelected.type === 'arrow') ? singleSelected : null
+  const canResize = singleSelected != null && singleSelected.angle === 0 && !editablePolyline
 
   // --- properties panel context ---
   const selTypes = useMemo(() => new Set(selectedElements.map((element) => element.type)), [selectedElements])
@@ -246,6 +251,31 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
           elements: gesture.base.elements.map((element) => (element.id === gesture.elementId ? applyResize(baseElement, nextRect) : element)),
         })
       }
+      case 'point': {
+        return {
+          ...gesture.base,
+          elements: gesture.base.elements.map((element) => {
+            if (element.id !== gesture.elementId || !isLinear(element)) {
+              return element
+            }
+            const abs = element.points.map((p) => ({ x: element.x + p.x, y: element.y + p.y }))
+            abs[gesture.index] = point
+            let minX = Infinity
+            let minY = Infinity
+            for (const p of abs) {
+              minX = Math.min(minX, p.x)
+              minY = Math.min(minY, p.y)
+            }
+            const isEnd = gesture.index === 0 || gesture.index === element.points.length - 1
+            const cleared = element.type === 'arrow' && isEnd
+              ? gesture.index === 0
+                ? { startBinding: undefined }
+                : { endBinding: undefined }
+              : {}
+            return { ...element, ...cleared, x: minX, y: minY, width: Math.max(...abs.map((p) => p.x)) - minX, height: Math.max(...abs.map((p) => p.y)) - minY, points: abs.map((p) => ({ x: p.x - minX, y: p.y - minY })) }
+          }),
+        }
+      }
       case 'rotate': {
         const baseElement = gesture.base.elements.find((element) => element.id === gesture.elementId)
         if (!baseElement) {
@@ -263,7 +293,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   }, [])
 
   const newElementStyle = useMemo(
-    () => ({ stroke: draw.stroke, fill: draw.fill, fillStyle: draw.fillStyle, strokeWidth: draw.strokeWidth, strokeStyle: draw.strokeStyle, opacity: draw.opacity, roundness: draw.roundness }),
+    () => ({ stroke: draw.stroke, fill: draw.fill, fillStyle: draw.fillStyle, strokeWidth: draw.strokeWidth, strokeStyle: draw.strokeStyle, opacity: draw.opacity, fillOpacity: draw.fillOpacity, roundness: draw.roundness }),
     [draw],
   )
 
@@ -327,7 +357,18 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return
       }
 
-      // select tool
+      // select tool — endpoint handles for a selected line/arrow take priority.
+      if (editablePolyline) {
+        const tol = HANDLE_PX * scenePerPixel
+        for (let i = 0; i < editablePolyline.points.length; i += 1) {
+          const abs = { x: editablePolyline.x + editablePolyline.points[i].x, y: editablePolyline.y + editablePolyline.points[i].y }
+          if (Math.hypot(point.x - abs.x, point.y - abs.y) <= tol) {
+            gestureRef.current = { mode: 'point', elementId: editablePolyline.id, index: i, base: scene }
+            return
+          }
+        }
+      }
+
       if (canResize && selectionRect) {
         const tol = HIT_TOL_PX * scenePerPixel
         const rotate = { x: selectionRect.x + selectionRect.width / 2, y: selectionRect.y - ROTATE_OFFSET_PX * scenePerPixel }
@@ -363,7 +404,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setSelected([])
       }
     },
-    [camera, canResize, draw, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, spaceDown, tool, toScene],
+    [camera, canResize, draw, editablePolyline, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, spaceDown, tool, toScene],
   )
 
   const onPointerMove = useCallback(
@@ -394,6 +435,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       if (gesture.mode === 'arrow') {
         const target = bindableAt(scene.elements, point, BIND_TOL_PX * scenePerPixel)
         setBindHighlight(target && target.id !== gesture.id ? target.id : null)
+      }
+      if (gesture.mode === 'point') {
+        const element = scene.elements.find((el) => el.id === gesture.elementId)
+        const isEnd = element && (gesture.index === 0 || gesture.index === (isLinear(element) ? element.points.length - 1 : 0))
+        if (element?.type === 'arrow' && isEnd) {
+          const target = bindableAt(scene.elements, point, BIND_TOL_PX * scenePerPixel)
+          setBindHighlight(target && target.id !== gesture.elementId ? target.id : null)
+        }
       }
 
       const next = applyGesture(gesture, point)
@@ -451,6 +500,24 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setTool('select')
       }
 
+      if (gesture.mode === 'point') {
+        const element = scene.elements.find((el) => el.id === gesture.elementId)
+        if (element?.type === 'arrow' && (gesture.index === 0 || gesture.index === element.points.length - 1)) {
+          const target = bindableAt(scene.elements, point, BIND_TOL_PX * scenePerPixel)
+          const binding = target && target.id !== gesture.elementId ? { elementId: target.id, focus: 0, gap: 4 } : undefined
+          next = {
+            ...next,
+            elements: next.elements.map((el) =>
+              el.id === gesture.elementId && el.type === 'arrow'
+                ? gesture.index === 0
+                  ? { ...el, startBinding: binding }
+                  : { ...el, endBinding: binding }
+                : el,
+            ),
+          }
+        }
+      }
+
       if (gesture.mode === 'freedraw') {
         next = {
           ...next,
@@ -483,23 +550,44 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     [camera],
   )
 
+  /** Open inline label/text editing for a given element id. */
+  const editLabelOf = useCallback(
+    (id: string) => {
+      const element = scene.elements.find((el) => el.id === id)
+      if (!element || element.type === 'freedraw') {
+        return
+      }
+      setSelected([id])
+      if (element.type === 'text') {
+        setEditingText({ id, value: element.text, isLabel: false })
+      } else {
+        setEditingText({ id, value: element.label ?? '', isLabel: true })
+      }
+    },
+    [scene.elements],
+  )
+
+  // Refs so the global keyboard handler can read current selection / edit
+  // without re-subscribing on every change (synced after each render).
+  const selectedIdsRef = useRef<string[]>([])
+  const editLabelRef = useRef(editLabelOf)
+  useEffect(() => {
+    selectedIdsRef.current = selected
+    editLabelRef.current = editLabelOf
+  })
+
   // --- double-click: edit text/label ---
   const onDoubleClick = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       const point = toScene(event.clientX, event.clientY)
-      const hit = hitTest(scene.elements, point, HIT_TOL_PX * scenePerPixel)
-      if (!hit) {
-        return
-      }
-      if (hit.type === 'text') {
-        setSelected([hit.id])
-        setEditingText({ id: hit.id, value: hit.text, isLabel: false })
-      } else if (hit.type === 'rectangle' || hit.type === 'ellipse' || hit.type === 'diamond') {
-        setSelected([hit.id])
-        setEditingText({ id: hit.id, value: hit.label ?? '', isLabel: true })
+      // Prefer a direct hit; fall back to the current single selection so a
+      // near-miss on a thin line still edits the intended element.
+      const hit = hitTest(scene.elements, point, HIT_TOL_PX * 2 * scenePerPixel) ?? (selected.length === 1 ? scene.elements.find((el) => el.id === selected[0]) ?? null : null)
+      if (hit) {
+        editLabelOf(hit.id)
       }
     },
-    [scene.elements, scenePerPixel, toScene],
+    [editLabelOf, scene.elements, scenePerPixel, selected, toScene],
   )
 
   const commitEditingText = useCallback(() => {
@@ -683,6 +771,11 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       if (typing) {
         return
       }
+      if ((event.key === 'Enter' || event.key === 'F2') && selectedIdsRef.current.length === 1) {
+        event.preventDefault()
+        editLabelRef.current(selectedIdsRef.current[0])
+        return
+      }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
         deleteSelected()
@@ -728,6 +821,17 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       return null
     }
     const fontPx = (editingText.isLabel ? editingElement.labelFontSize ?? 16 : editingElement.type === 'text' ? editingElement.fontSize : draw.fontSize) * camera.zoom
+    const isLinearLabel = editingText.isLabel && (editingElement.type === 'line' || editingElement.type === 'arrow')
+    if (isLinearLabel && (editingElement.type === 'line' || editingElement.type === 'arrow')) {
+      // Center the editor on the polyline's midpoint.
+      const pts = editingElement.points
+      const mid = pts[Math.floor(pts.length / 2)] ?? { x: 0, y: 0 }
+      const prev = pts[Math.floor(pts.length / 2) - 1] ?? mid
+      const cx = editingElement.x + (mid.x + prev.x) / 2
+      const cy = editingElement.y + (mid.y + prev.y) / 2
+      const width = 140
+      return { left: (cx - camera.x) * camera.zoom - width / 2, top: (cy - camera.y) * camera.zoom - fontPx, width, fontPx, height: fontPx * 1.4 }
+    }
     const left = (editingElement.x - camera.x) * camera.zoom
     const top = (editingElement.y - camera.y) * camera.zoom
     const width = Math.max(60, editingElement.width * camera.zoom)
@@ -783,21 +887,37 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               />
             )}
 
-            {selectionRect && (
+            {editablePolyline ? (
               <g pointerEvents="none">
-                <rect x={selectionRect.x} y={selectionRect.y} width={selectionRect.width} height={selectionRect.height} fill="none" stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} strokeDasharray={`${4 * scenePerPixel} ${3 * scenePerPixel}`} />
-                {rotatePos && (
-                  <>
-                    <line x1={selectionRect.x + selectionRect.width / 2} y1={selectionRect.y} x2={rotatePos.x} y2={rotatePos.y} stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} />
-                    <circle cx={rotatePos.x} cy={rotatePos.y} r={handleSize / 2} fill="var(--sketch-accent, #2563eb)" />
-                  </>
-                )}
-                {canResize &&
-                  RESIZE_HANDLES.map((handle) => {
-                    const pos = handlePositions(selectionRect)[handle]
-                    return <rect key={handle} x={pos.x - handleSize / 2} y={pos.y - handleSize / 2} width={handleSize} height={handleSize} fill="#fff" stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} />
-                  })}
+                {editablePolyline.points.map((p, i) => (
+                  <circle
+                    key={i}
+                    cx={editablePolyline.x + p.x}
+                    cy={editablePolyline.y + p.y}
+                    r={handleSize / 2}
+                    fill="#fff"
+                    stroke="var(--sketch-accent, #2563eb)"
+                    strokeWidth={1.5 * scenePerPixel}
+                  />
+                ))}
               </g>
+            ) : (
+              selectionRect && (
+                <g pointerEvents="none">
+                  <rect x={selectionRect.x} y={selectionRect.y} width={selectionRect.width} height={selectionRect.height} fill="none" stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} strokeDasharray={`${4 * scenePerPixel} ${3 * scenePerPixel}`} />
+                  {rotatePos && (
+                    <>
+                      <line x1={selectionRect.x + selectionRect.width / 2} y1={selectionRect.y} x2={rotatePos.x} y2={rotatePos.y} stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} />
+                      <circle cx={rotatePos.x} cy={rotatePos.y} r={handleSize / 2} fill="var(--sketch-accent, #2563eb)" />
+                    </>
+                  )}
+                  {canResize &&
+                    RESIZE_HANDLES.map((handle) => {
+                      const pos = handlePositions(selectionRect)[handle]
+                      return <rect key={handle} x={pos.x - handleSize / 2} y={pos.y - handleSize / 2} width={handleSize} height={handleSize} fill="#fff" stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} />
+                    })}
+                </g>
+              )
             )}
 
             {marquee && (

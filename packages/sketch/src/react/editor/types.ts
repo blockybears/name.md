@@ -21,6 +21,7 @@ export interface DrawState {
   style: DrawStyle
   roundness: number
   opacity: number
+  fillOpacity: number
   startArrowhead: Arrowhead
   endArrowhead: Arrowhead
   fontSize: number
@@ -35,6 +36,7 @@ export const defaultDrawState = (style: DrawStyle): DrawState => ({
   style,
   roundness: 0,
   opacity: 1,
+  fillOpacity: 1,
   startArrowhead: 'none',
   endArrowhead: 'arrow',
   fontSize: 20,

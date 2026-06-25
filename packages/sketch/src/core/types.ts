@@ -44,7 +44,10 @@ export interface ElementBase {
   angle: number
   /** Stable per-element seed so the sketchy renderer is deterministic. */
   seed: number
+  /** Stroke/outline opacity (0..1), independent of fill opacity. */
   opacity: number
+  /** Fill opacity (0..1), independent of stroke opacity. */
+  fillOpacity: number
   strokeWidth: number
   strokeStyle: StrokeStyle
   style: DrawStyle

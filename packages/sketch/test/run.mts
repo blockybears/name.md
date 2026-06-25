@@ -269,6 +269,26 @@ test('createDiagram produces elements that survive serialize round-trip', () => 
   }
 })
 
+test('stroke and fill opacity render independently', () => {
+  const scene = createScene({
+    elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 40, height: 40, fillStyle: 'solid', fill: literal('#00f'), opacity: 0.5, fillOpacity: 0.2, style: 'clean', id: 'o' })],
+  })
+  const svg = sceneToSvgString(scene)
+  // Fill path carries the fill opacity; outline carries the stroke opacity.
+  assert.ok(svg.includes('opacity="0.2"'), 'fill opacity present')
+  assert.ok(svg.includes('opacity="0.5"'), 'stroke opacity present')
+})
+
+test('lines and arrows can carry a midpoint label', () => {
+  const scene = createScene({
+    elements: [
+      createElement({ type: 'arrow', x: 0, y: 0, width: 100, height: 0, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }], label: 'sends', style: 'clean', id: 'a' }) ,
+    ],
+  })
+  const svg = sceneToSvgString(scene)
+  assert.ok(svg.includes('sends'), 'arrow label rendered')
+})
+
 test('flowchart arrows are bound to shapes', () => {
   const elements = createDiagram('flowchart', { x: 0, y: 0 }, 'clean')
   const arrows = elements.filter((el) => el.type === 'arrow') as ArrowElement[]

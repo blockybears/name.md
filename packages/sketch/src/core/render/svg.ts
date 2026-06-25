@@ -19,6 +19,7 @@ export interface RenderPath {
   strokeWidth: number
   fill: string
   dash?: string
+  opacity?: number
 }
 
 export interface RenderText {
@@ -31,6 +32,7 @@ export interface RenderText {
   anchor: 'start' | 'middle' | 'end'
   baseline?: 'auto' | 'middle'
   fill: string
+  opacity?: number
 }
 
 export type RenderShape = RenderPath | RenderText
@@ -38,7 +40,6 @@ export type RenderShape = RenderPath | RenderText
 export interface RenderElement {
   id: string
   transform: string
-  opacity: number
   shapes: RenderShape[]
 }
 
@@ -205,6 +206,7 @@ function elementShapes(element: SketchElement): RenderShape[] {
       fontFamily: element.fontFamily,
       anchor,
       fill: color,
+      opacity: element.opacity,
     }))
   }
 
@@ -212,11 +214,11 @@ function elementShapes(element: SketchElement): RenderShape[] {
   const rng = makeRng(element.seed)
   const sketchy = element.style === 'sketchy'
 
-  // Fill (drawn behind the outline).
+  // Fill (drawn behind the outline) — uses the independent fill opacity.
   if (element.fillStyle === 'solid') {
     const region = fillRegionPath(element)
     if (region) {
-      shapes.push({ kind: 'path', d: region, stroke: 'none', strokeWidth: 0, fill: resolveColor(element.fill) })
+      shapes.push({ kind: 'path', d: region, stroke: 'none', strokeWidth: 0, fill: resolveColor(element.fill), opacity: element.fillOpacity })
     }
   } else if (element.fillStyle === 'hachure') {
     const segments = hachureSegments(element)
@@ -228,11 +230,12 @@ function elementShapes(element: SketchElement): RenderShape[] {
         stroke: resolveColor(element.fill),
         strokeWidth: Math.max(1, element.strokeWidth * 0.6),
         fill: 'none',
+        opacity: element.fillOpacity,
       })
     }
   }
 
-  // Outline.
+  // Outline — uses the independent stroke opacity.
   const outline = sketchy ? sketchyOutline(element, rng) : cleanOutline(element)
   if (outline) {
     shapes.push({
@@ -242,6 +245,7 @@ function elementShapes(element: SketchElement): RenderShape[] {
       strokeWidth: element.strokeWidth,
       fill: 'none',
       dash: dashArray(element),
+      opacity: element.opacity,
     })
   }
 
@@ -260,6 +264,7 @@ function elementShapes(element: SketchElement): RenderShape[] {
         stroke: strokeColor,
         strokeWidth: element.strokeWidth,
         fill: filled ? strokeColor : 'none',
+        opacity: element.opacity,
       })
     }
     if (element.startArrowhead !== 'none') {
@@ -272,20 +277,47 @@ function elementShapes(element: SketchElement): RenderShape[] {
         stroke: strokeColor,
         strokeWidth: element.strokeWidth,
         fill: filled ? strokeColor : 'none',
+        opacity: element.opacity,
       })
     }
   }
 
-  // Centered label (diagram node text).
-  if (element.label && (element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond')) {
+  // Label: centered in container shapes, at the midpoint of lines/arrows.
+  if (element.label) {
     const fontSize = element.labelFontSize ?? 16
     const lines = element.label.split('\n')
     const lineHeight = fontSize * 1.25
-    const startY = element.height / 2 - ((lines.length - 1) * lineHeight) / 2
+    let cx = element.width / 2
+    let cy = element.height / 2
+    let backdrop = false
+    if (element.type === 'line' || element.type === 'arrow') {
+      // Midpoint of the polyline (in local coords), with a small backdrop so
+      // the text reads over the line.
+      const pts = element.points
+      const mid = pts[Math.floor(pts.length / 2)] ?? { x: cx, y: cy }
+      const prev = pts[Math.floor(pts.length / 2) - 1] ?? mid
+      cx = (mid.x + prev.x) / 2
+      cy = (mid.y + prev.y) / 2
+      backdrop = true
+    } else if (!(element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond')) {
+      return shapes
+    }
+    const startY = cy - ((lines.length - 1) * lineHeight) / 2
+    if (backdrop) {
+      const longest = lines.reduce((max, line) => Math.max(max, line.length), 1)
+      shapes.push({
+        kind: 'path',
+        d: rectAround(cx, cy, longest * fontSize * 0.58 + 8, lines.length * lineHeight + 4),
+        stroke: 'none',
+        strokeWidth: 0,
+        fill: resolveColor({ kind: 'token', token: 'canvas' }),
+        opacity: 0.85,
+      })
+    }
     lines.forEach((line, index) => {
       shapes.push({
         kind: 'text',
-        x: element.width / 2,
+        x: cx,
         y: startY + index * lineHeight,
         text: line,
         fontSize,
@@ -293,6 +325,7 @@ function elementShapes(element: SketchElement): RenderShape[] {
         anchor: 'middle',
         baseline: 'middle',
         fill: resolveColor(element.stroke),
+        opacity: element.opacity,
       })
     })
   }
@@ -300,11 +333,16 @@ function elementShapes(element: SketchElement): RenderShape[] {
   return shapes
 }
 
+function rectAround(cx: number, cy: number, width: number, height: number): string {
+  const x = cx - width / 2
+  const y = cy - height / 2
+  return `M${x.toFixed(2)} ${y.toFixed(2)} h${width.toFixed(2)} v${height.toFixed(2)} h${(-width).toFixed(2)} Z`
+}
+
 export function renderElement(element: SketchElement): RenderElement {
   return {
     id: element.id,
     transform: transformFor(element),
-    opacity: element.opacity,
     shapes: elementShapes(element),
   }
 }
@@ -328,13 +366,17 @@ function escapeXml(value: string): string {
     .replace(/"/g, '&quot;')
 }
 
+function opacityAttr(opacity?: number): string {
+  return opacity != null && opacity < 1 ? ` opacity="${opacity}"` : ''
+}
+
 function shapeToString(shape: RenderShape): string {
   if (shape.kind === 'path') {
     const dash = shape.dash ? ` stroke-dasharray="${shape.dash}"` : ''
-    return `<path d="${shape.d}" stroke="${shape.stroke}" stroke-width="${shape.strokeWidth}" fill="${shape.fill}"${dash} stroke-linejoin="round" stroke-linecap="round" />`
+    return `<path d="${shape.d}" stroke="${shape.stroke}" stroke-width="${shape.strokeWidth}" fill="${shape.fill}"${dash}${opacityAttr(shape.opacity)} stroke-linejoin="round" stroke-linecap="round" />`
   }
   const baseline = shape.baseline === 'middle' ? ' dominant-baseline="central"' : ''
-  return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}" text-anchor="${shape.anchor}"${baseline} fill="${shape.fill}">${escapeXml(shape.text)}</text>`
+  return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}" text-anchor="${shape.anchor}"${baseline} fill="${shape.fill}"${opacityAttr(shape.opacity)}>${escapeXml(shape.text)}</text>`
 }
 
 export function sceneToSvgString(scene: Scene, options: RenderOptions = {}): string {
@@ -342,7 +384,7 @@ export function sceneToSvgString(scene: Scene, options: RenderOptions = {}): str
   const body = rendered.elements
     .map((element) => {
       const inner = element.shapes.map(shapeToString).join('')
-      return `<g transform="${element.transform}" opacity="${element.opacity}">${inner}</g>`
+      return `<g transform="${element.transform}">${inner}</g>`
     })
     .join('')
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${rendered.viewBox}"><rect x="-100000" y="-100000" width="200000" height="200000" fill="${rendered.background}" />${body}</svg>`

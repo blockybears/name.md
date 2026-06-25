@@ -33,6 +33,7 @@ const baseDefaults = (style: DrawStyle): Omit<ElementBase, 'id' | 'seed'> => ({
   height: 0,
   angle: 0,
   opacity: 1,
+  fillOpacity: 1,
   strokeWidth: 2,
   strokeStyle: 'solid',
   style,

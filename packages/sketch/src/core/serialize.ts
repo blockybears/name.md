@@ -145,6 +145,7 @@ function coerceElement(value: unknown): SketchElement | null {
     angle: num(data.angle, 0),
     seed: num(data.seed, 1),
     opacity: num(data.opacity, 1),
+    fillOpacity: num(data.fillOpacity, 1),
     strokeWidth: num(data.strokeWidth, 2),
     style: coerceStyle(data.style),
     stroke: coerceColor(data.stroke) ?? token('foreground'),

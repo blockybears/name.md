@@ -157,16 +157,30 @@ export function PropertiesPanel({
       )}
 
       <div className="sketch-prop-row">
-        <span className="sketch-prop-label">Opacity</span>
+        <span className="sketch-prop-label">Stroke opacity</span>
         <input
           type="range"
-          min={0.1}
+          min={0}
           max={1}
-          step={0.1}
+          step={0.05}
           value={draw.opacity}
           onChange={(event) => onChange({ opacity: Number(event.target.value) })}
         />
       </div>
+
+      {showFill && (
+        <div className="sketch-prop-row">
+          <span className="sketch-prop-label">Fill opacity</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={draw.fillOpacity}
+            onChange={(event) => onChange({ fillOpacity: Number(event.target.value) })}
+          />
+        </div>
+      )}
 
       {hasSelection && (
         <>
