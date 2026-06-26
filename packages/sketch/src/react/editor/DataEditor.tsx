@@ -1,0 +1,202 @@
+import { useMemo, useState, type ClipboardEvent } from 'react'
+import {
+  csvToGantt,
+  csvToSeries,
+  dayToISO,
+  ganttFromRows,
+  gridToTsv,
+  parseDelimited,
+  parseHtmlTable,
+  seriesFromRows,
+  type DiagramData,
+  type GanttData,
+  type GanttRow,
+  type SeriesData,
+  type SeriesRow,
+} from '../../core'
+import { Icon } from './Icon'
+
+type DataKind = 'gantt' | 'series'
+
+export interface DataEditorProps {
+  mode: 'create' | 'edit'
+  /** When editing an existing diagram, its current data. */
+  initial?: GanttData | SeriesData
+  onApply: (data: DiagramData) => void
+  onClose: () => void
+}
+
+const emptyGanttRow = (): GanttRow => ({ name: '', start: '', duration: '', deps: '', tags: '' })
+const emptySeriesRow = (): SeriesRow => ({ label: '', value: '' })
+
+function ganttToRows(data: GanttData): GanttRow[] {
+  return data.tasks.map((task) => ({
+    name: task.name,
+    start: dayToISO(task.startDay),
+    duration: String(Math.round((task.endDay - task.startDay) * 10) / 10),
+    deps: task.deps.join(', '),
+    tags: task.tags.join(', '),
+    section: task.section,
+  }))
+}
+function seriesToRows(data: SeriesData): SeriesRow[] {
+  return data.items.map((item) => ({ label: item.label, value: String(item.value) }))
+}
+
+/** Modal for authoring a chart from typed/pasted numeric data. */
+export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps) {
+  const [kind, setKind] = useState<DataKind>(initial?.kind === 'series' ? 'series' : 'gantt')
+  const [title, setTitle] = useState(initial && 'title' in initial ? initial.title ?? '' : '')
+  const [ganttRows, setGanttRows] = useState<GanttRow[]>(
+    initial?.kind === 'gantt' ? [...ganttToRows(initial), emptyGanttRow()] : [emptyGanttRow()],
+  )
+  const [seriesRows, setSeriesRows] = useState<SeriesRow[]>(
+    initial?.kind === 'series' ? [...seriesToRows(initial), emptySeriesRow()] : [emptySeriesRow()],
+  )
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteText, setPasteText] = useState('')
+
+  const data = useMemo<DiagramData>(
+    () => (kind === 'gantt' ? ganttFromRows(ganttRows, title) : seriesFromRows(seriesRows, title)),
+    [kind, ganttRows, seriesRows, title],
+  )
+  const count = kind === 'gantt' ? (data as GanttData).tasks.length : (data as SeriesData).items.length
+
+  // Keep a trailing blank row so there's always somewhere to type.
+  const setGantt = (rows: GanttRow[]) => setGanttRows(rows.at(-1)?.name.trim() ? [...rows, emptyGanttRow()] : rows)
+  const setSeries = (rows: SeriesRow[]) => setSeriesRows(rows.at(-1)?.label.trim() ? [...rows, emptySeriesRow()] : rows)
+
+  const editGantt = (i: number, key: keyof GanttRow, value: string) => setGantt(ganttRows.map((r, j) => (j === i ? { ...r, [key]: value } : r)))
+  const editSeries = (i: number, key: keyof SeriesRow, value: string) => setSeries(seriesRows.map((r, j) => (j === i ? { ...r, [key]: value } : r)))
+  const removeGantt = (i: number) => setGanttRows(ganttRows.length > 1 ? ganttRows.filter((_, j) => j !== i) : [emptyGanttRow()])
+  const removeSeries = (i: number) => setSeriesRows(seriesRows.length > 1 ? seriesRows.filter((_, j) => j !== i) : [emptySeriesRow()])
+
+  const fillFromPaste = (text: string) => {
+    if (kind === 'gantt') {
+      const parsed = csvToGantt(text)
+      setGanttRows([...ganttToRows(parsed), emptyGanttRow()])
+    } else {
+      const parsed = csvToSeries(text)
+      if (parsed.title && !title) setTitle(parsed.title)
+      setSeriesRows([...seriesToRows(parsed), emptySeriesRow()])
+    }
+  }
+
+  // Paste a spreadsheet block directly into the grid (spills into rows).
+  // Prefer the clipboard's HTML-table flavour (cells with commas/newlines stay
+  // intact); fall back to plain TSV/CSV text.
+  const onGridPaste = (event: ClipboardEvent) => {
+    const html = event.clipboardData.getData('text/html')
+    const htmlGrid = html ? parseHtmlTable(html) : null
+    const text = htmlGrid ? gridToTsv(htmlGrid) : event.clipboardData.getData('text/plain')
+    if (!text || parseDelimited(text).length <= 1) {
+      return
+    }
+    event.preventDefault()
+    fillFromPaste(text)
+  }
+
+  return (
+    <div className="sketch-import-overlay" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sketch-data-modal" onPaste={onGridPaste}>
+        <div className="sketch-import-head">
+          <span>{mode === 'edit' ? 'Edit chart data' : 'New chart from data'}</span>
+          <button type="button" className="sketch-icon-btn" aria-label="Close" onClick={onClose}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="sketch-data-controls">
+          {mode === 'create' && (
+            <div className="sketch-data-kind" role="tablist">
+              <button type="button" role="tab" aria-selected={kind === 'gantt'} className={kind === 'gantt' ? 'is-active' : undefined} onClick={() => setKind('gantt')}>
+                Tasks / timeline
+              </button>
+              <button type="button" role="tab" aria-selected={kind === 'series'} className={kind === 'series' ? 'is-active' : undefined} onClick={() => setKind('series')}>
+                Values (pie / bar)
+              </button>
+            </div>
+          )}
+          <input className="sketch-data-title" placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+
+        <div className="sketch-data-grid-wrap">
+          {kind === 'gantt' ? (
+            <table className="sketch-data-grid">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Start (YYYY-MM-DD)</th>
+                  <th>Days</th>
+                  <th>After</th>
+                  <th>Tags</th>
+                  <th aria-label="remove" />
+                </tr>
+              </thead>
+              <tbody>
+                {ganttRows.map((row, i) => (
+                  <tr key={i}>
+                    <td><input value={row.name} placeholder="Task name" onChange={(e) => editGantt(i, 'name', e.target.value)} /></td>
+                    <td><input value={row.start} placeholder="(or blank)" onChange={(e) => editGantt(i, 'start', e.target.value)} /></td>
+                    <td><input className="sketch-data-num" value={row.duration} placeholder="5" onChange={(e) => editGantt(i, 'duration', e.target.value)} /></td>
+                    <td><input value={row.deps} placeholder="dep task" onChange={(e) => editGantt(i, 'deps', e.target.value)} /></td>
+                    <td><input value={row.tags} placeholder="crit, done…" onChange={(e) => editGantt(i, 'tags', e.target.value)} /></td>
+                    <td><button type="button" className="sketch-data-del" aria-label="Remove row" onClick={() => removeGantt(i)}>×</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="sketch-data-grid">
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>Value</th>
+                  <th aria-label="remove" />
+                </tr>
+              </thead>
+              <tbody>
+                {seriesRows.map((row, i) => (
+                  <tr key={i}>
+                    <td><input value={row.label} placeholder="Category" onChange={(e) => editSeries(i, 'label', e.target.value)} /></td>
+                    <td><input className="sketch-data-num" value={row.value} placeholder="0" onChange={(e) => editSeries(i, 'value', e.target.value)} /></td>
+                    <td><button type="button" className="sketch-data-del" aria-label="Remove row" onClick={() => removeSeries(i)}>×</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="sketch-data-paste">
+          <button type="button" className="sketch-data-paste-toggle" onClick={() => setPasteOpen((o) => !o)} aria-expanded={pasteOpen}>
+            <Icon name="import" size={14} /> Paste from a spreadsheet (CSV / TSV)
+          </button>
+          {pasteOpen && (
+            <div className="sketch-data-paste-body">
+              <textarea
+                className="sketch-import-text"
+                spellCheck={false}
+                placeholder={kind === 'gantt' ? 'Task\tStart\tDays\tAfter\nDesign\t2024-03-01\t5\nBuild\t\t8\tDesign' : 'Region,Sales\nNorth,1200\nSouth,950'}
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+              />
+              <button type="button" onClick={() => { fillFromPaste(pasteText); setPasteText(''); setPasteOpen(false) }}>
+                Fill table from paste
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="sketch-import-foot">
+          <span className="sketch-data-count">{count} {kind === 'gantt' ? 'task' : 'value'}{count === 1 ? '' : 's'}</span>
+          <span className="sketch-import-spacer" />
+          <button type="button" onClick={onClose}>Cancel</button>
+          <button type="button" className="sketch-import-go" disabled={count === 0} onClick={() => onApply(data)}>
+            {mode === 'edit' ? 'Update' : 'Create chart'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -21,10 +21,13 @@ import {
   availableViews,
   bindableAt,
   cameraViewRect,
+  defaultViewFor,
   diagramIdOfElement,
   flattenDiagram,
   sceneElements,
   type DiagramInstance,
+  type GanttData,
+  type SeriesData,
   type ViewId,
   computeSnap,
   createDiagram,
@@ -68,6 +71,7 @@ import {
 import { RenderedScene } from './RenderedScene'
 import { Icon } from './editor/Icon'
 import { Toolbar } from './editor/Toolbar'
+import { DataEditor } from './editor/DataEditor'
 import { PropertiesBar, type LayerAction } from './editor/PropertiesBar'
 import { defaultDrawState, type DrawState, type ToolId } from './editor/types'
 import './editor/editor.css'
@@ -142,6 +146,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [contextMenu, setContextMenu] = useState<{ left: number; top: number; elementId: string } | null>(null)
   const [selectedDiagramId, setSelectedDiagramId] = useState<string | null>(null)
   const [viewMenuOpen, setViewMenuOpen] = useState(false)
+  const [dataEditor, setDataEditor] = useState<{ mode: 'create' | 'edit'; diagramId?: string; initial?: GanttData | SeriesData } | null>(null)
   const [codeOpen, setCodeOpen] = useState(false)
   const [codeText, setCodeText] = useState('')
   const [codeError, setCodeError] = useState<string | null>(null)
@@ -1093,6 +1098,35 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     setViewMenuOpen(false)
   }, [commit, scene, selectedDiagramId])
 
+  const editSelectedDiagramData = useCallback(() => {
+    if (!selectedDiagram || (selectedDiagram.data.kind !== 'gantt' && selectedDiagram.data.kind !== 'series')) {
+      return
+    }
+    setViewMenuOpen(false)
+    setDataEditor({ mode: 'edit', diagramId: selectedDiagram.id, initial: selectedDiagram.data })
+  }, [selectedDiagram])
+
+  const applyDataEditor = useCallback(
+    (data: DiagramInstance['data']) => {
+      if (!dataEditor) {
+        return
+      }
+      if (dataEditor.mode === 'edit' && dataEditor.diagramId) {
+        const id = dataEditor.diagramId
+        commit({
+          ...scene,
+          diagrams: (scene.diagrams ?? []).map((d) =>
+            d.id === id ? { ...d, data, view: availableViews(data).some((v) => v.id === d.view) ? d.view : defaultViewFor(data) } : d,
+          ),
+        })
+      } else {
+        insertStructuredDiagram(data, defaultViewFor(data))
+      }
+      setDataEditor(null)
+    },
+    [commit, dataEditor, insertStructuredDiagram, scene],
+  )
+
   const openImport = useCallback((type: 'mermaid' | 'json') => {
     setImportState({ type, text: '', error: null })
   }, [])
@@ -1275,6 +1309,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         onTool={setTool}
         onInsertDiagram={insertDiagram}
         onImport={openImport}
+        onNewChart={() => setDataEditor({ mode: 'create' })}
         zoom={camera.zoom}
         onZoomIn={() => zoomBy(1.2)}
         onZoomOut={() => zoomBy(1 / 1.2)}
@@ -1472,7 +1507,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             <div
               className="sketch-diagram-toolbar"
               style={{
-                left: (diagramRect.x - camera.x) * camera.zoom,
+                left: Math.max(4, (diagramRect.x - camera.x) * camera.zoom),
                 top: Math.max(4, (diagramRect.y - camera.y) * camera.zoom - 44),
               }}
             >
@@ -1497,6 +1532,11 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
                   </div>
                 )}
               </div>
+              {(selectedDiagram.data.kind === 'gantt' || selectedDiagram.data.kind === 'series') && (
+                <button type="button" className="sketch-diagram-btn" onClick={editSelectedDiagramData} title="Edit the underlying data">
+                  <Icon name="sliders" /> Edit data
+                </button>
+              )}
               <button type="button" className="sketch-diagram-btn" onClick={flattenSelectedDiagram} title="Convert to editable shapes (one-way)">
                 Flatten
               </button>
@@ -1517,6 +1557,10 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
           )}
         </div>
       </div>
+
+      {dataEditor && (
+        <DataEditor mode={dataEditor.mode} initial={dataEditor.initial} onApply={applyDataEditor} onClose={() => setDataEditor(null)} />
+      )}
 
       {importState && (
         <div className="sketch-import-overlay">

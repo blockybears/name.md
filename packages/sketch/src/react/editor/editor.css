@@ -420,6 +420,153 @@
   border: 1px solid rgba(127, 127, 127, 0.5);
 }
 
+/* Data editor (author a chart from typed/pasted numbers). */
+.sketch-data-modal {
+  width: min(680px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--sketch-surface, #fff);
+  color: var(--sketch-foreground, #1f2937);
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+.sketch-data-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sketch-data-kind {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  overflow: hidden;
+}
+.sketch-data-kind button {
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sketch-data-kind button.is-active {
+  background: var(--sketch-accent, #2563eb);
+  color: #fff;
+}
+.sketch-data-title {
+  flex: 1;
+  min-width: 140px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background: var(--sketch-canvas, #fff);
+  color: inherit;
+  font-size: 14px;
+}
+
+.sketch-data-grid-wrap {
+  overflow: auto;
+  border: 1px solid rgba(127, 127, 127, 0.22);
+  border-radius: 10px;
+}
+.sketch-data-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.sketch-data-grid th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sketch-muted, #6b7280);
+  background: var(--sketch-surface, #fff);
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.22);
+}
+.sketch-data-grid td {
+  padding: 0;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.12);
+}
+.sketch-data-grid input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+}
+.sketch-data-grid input:focus {
+  outline: 2px solid var(--sketch-accent, #2563eb);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+.sketch-data-num {
+  text-align: right;
+}
+.sketch-data-del {
+  width: 28px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--sketch-muted, #9ca3af);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sketch-data-del:hover {
+  color: #e03131;
+}
+
+.sketch-data-paste-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: var(--sketch-accent, #2563eb);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sketch-data-paste-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sketch-data-paste-body textarea {
+  min-height: 96px;
+}
+.sketch-data-paste-body button {
+  align-self: flex-start;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background: var(--sketch-canvas, #fff);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sketch-data-count {
+  font-size: 13px;
+  color: var(--sketch-muted, #6b7280);
+}
+
 /* Floating toolbar for a selected structured diagram (View as / Flatten). */
 .sketch-diagram-toolbar {
   position: absolute;

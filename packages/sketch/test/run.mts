@@ -34,6 +34,9 @@ import {
   renderDiagramInstance,
   sceneElements,
   flattenDiagram,
+  csvToSeries,
+  csvToGantt,
+  parseDelimited,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -619,6 +622,34 @@ test('diagram: renderDiagramInstance produces stable ids and renders any view', 
     const again = renderDiagramInstance({ ...base, view })
     assert.equal(sceneToSvgString(createScene({ elements: els })), sceneToSvgString(createScene({ elements: again })))
   }
+})
+
+test('csvToSeries parses comma + header + currency/percent', () => {
+  const data = csvToSeries('Region,Sales\nNorth,"$1,200"\nSouth,950\nEast,30%')
+  assert.equal(data.title, 'Sales')
+  assert.deepEqual(data.items.map((i) => [i.label, i.value]), [['North', 1200], ['South', 950], ['East', 30]])
+})
+
+test('csvToSeries auto-detects TSV (spreadsheet clipboard)', () => {
+  const data = csvToSeries('A\t10\nB\t20\nC\t30')
+  assert.equal(data.items.length, 3)
+  assert.equal(data.items[1].value, 20)
+})
+
+test('parseDelimited handles quoted fields with commas and newlines', () => {
+  const rows = parseDelimited('name,note\n"Smith, Jr.","line1\nline2"\nDoe,ok')
+  assert.deepEqual(rows[1], ['Smith, Jr.', 'line1\nline2'])
+  assert.deepEqual(rows[2], ['Doe', 'ok'])
+})
+
+test('csvToGantt chains blank starts and scales durations', () => {
+  const data = csvToGantt('Task,Start,Duration,Deps\nDesign,2024-03-01,5\nBuild,,8,Design\nShip,,2')
+  assert.equal(data.tasks.length, 3)
+  const [design, build, ship] = data.tasks
+  assert.equal(build.startDay, design.endDay)
+  assert.equal(ship.startDay, build.endDay)
+  assert.equal(build.endDay - build.startDay, 8)
+  assert.deepEqual(build.deps, ['Design'])
 })
 
 test('scene with diagrams: render includes them, round-trips, and flattens', () => {

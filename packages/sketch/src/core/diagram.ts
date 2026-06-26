@@ -269,6 +269,20 @@ function dayToLabel(day: number): string {
   return `${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 }
 
+/** Epoch-day number ⇄ ISO date (YYYY-MM-DD), used by the data editor. */
+export function isoToDay(iso: string): number | null {
+  const m = iso.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (!m) {
+    return null
+  }
+  return Math.floor(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86400000)
+}
+
+export function dayToISO(day: number): string {
+  const date = new Date(Math.round(day) * 86400000)
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+}
+
 export function buildGanttView(gantt: GanttData, origin: Point, style: DrawStyle): SketchElement[] {
   if (gantt.tasks.length === 0) {
     return []
