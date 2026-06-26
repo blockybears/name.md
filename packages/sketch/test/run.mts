@@ -428,6 +428,31 @@ test('mermaid sequence diagram → actors, lifelines, message arrows', () => {
   assert.ok(sceneToSvgString(createScene({ elements })).startsWith('<svg'))
 })
 
+test('mermaid sequence loop/alt frames + notes', () => {
+  const code = [
+    'sequenceDiagram',
+    ' participant A',
+    ' participant B',
+    ' A->>B: hi',
+    ' loop every minute',
+    '  B->>A: ping',
+    ' end',
+    ' alt is ok',
+    '  B->>A: yes',
+    ' else not ok',
+    '  B->>A: no',
+    ' end',
+    ' note over A: thinking',
+  ].join('\n')
+  const els = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const rects = els.filter((e) => e.type === 'rectangle')
+  // 2 actors + 2 frames (loop, alt) + 1 note = 5 rectangles
+  assert.ok(rects.length === 5, `expected 5 rects, got ${rects.length}`)
+  assert.ok(rects.some((r) => r.label === 'thinking'), 'note rendered')
+  assert.ok(els.some((e) => e.type === 'text' && /loop/.test(e.text ?? '')), 'loop frame label')
+  assert.ok(els.some((e) => e.type === 'text' && /\[not ok\]/.test(e.text ?? '')), 'alt else divider label')
+})
+
 test('mermaid state diagram maps [*] to start/end ellipses', () => {
   const code = 'stateDiagram-v2\n [*] --> Idle\n Idle --> Running: go\n Running --> [*]'
   const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')

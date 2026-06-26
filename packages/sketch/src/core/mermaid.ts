@@ -503,6 +503,13 @@ function parsePie(code: string, origin: Point, style: DrawStyle): SketchElement[
 // Sequence diagram
 // ---------------------------------------------------------------------------
 
+type SeqStep =
+  | { kind: 'message'; from: string; to: string; text: string; dashed: boolean; arrow: boolean }
+  | { kind: 'note'; actors: string[]; text: string }
+  | { kind: 'open'; type: string; label: string }
+  | { kind: 'divider'; type: string; label: string }
+  | { kind: 'close' }
+
 function parseSequence(code: string, origin: Point, style: DrawStyle): SketchElement[] {
   const actors: string[] = []
   const labels = new Map<string, string>()
@@ -514,11 +521,11 @@ function parseSequence(code: string, origin: Point, style: DrawStyle): SketchEle
       labels.set(id, label)
     }
   }
-  const messages: Array<{ from: string; to: string; text: string; dashed: boolean; arrow: boolean }> = []
+  const steps: SeqStep[] = []
 
   for (const line of cleanLines(code)) {
     const trimmed = line.trim()
-    if (/^sequenceDiagram\b/i.test(trimmed)) {
+    if (/^sequenceDiagram\b/i.test(trimmed) || /^(autonumber|activate|deactivate)\b/i.test(trimmed)) {
       continue
     }
     const participant = trimmed.match(/^(?:participant|actor)\s+(\w+)(?:\s+as\s+(.+))?$/i)
@@ -526,18 +533,33 @@ function parseSequence(code: string, origin: Point, style: DrawStyle): SketchEle
       ensureActor(participant[1], participant[2] ? unquote(participant[2]) : undefined)
       continue
     }
-    const message = trimmed.match(/^(\w+)\s*(-{1,2}>>?|-{1,2}[x)]|-{1,2}>)\s*(\w+)\s*:\s*(.*)$/)
+    const block = trimmed.match(/^(loop|alt|opt|par|critical|break|rect)\b\s*(.*)$/i)
+    if (block) {
+      steps.push({ kind: 'open', type: block[1].toLowerCase(), label: block[2].trim() })
+      continue
+    }
+    const divider = trimmed.match(/^(else|and|option)\b\s*(.*)$/i)
+    if (divider) {
+      steps.push({ kind: 'divider', type: divider[1].toLowerCase(), label: divider[2].trim() })
+      continue
+    }
+    if (/^end\b/i.test(trimmed)) {
+      steps.push({ kind: 'close' })
+      continue
+    }
+    const note = trimmed.match(/^note\s+(?:over|(?:left|right)\s+of)\s+([\w, ]+?)\s*:\s*(.+)$/i)
+    if (note) {
+      const noteActors = note[1].split(',').map((a) => a.trim()).filter(Boolean)
+      noteActors.forEach((a) => ensureActor(a))
+      steps.push({ kind: 'note', actors: noteActors, text: note[2].trim() })
+      continue
+    }
+    const message = trimmed.match(/^([\w]+)\s*(-{1,2}>>?|-{1,2}[x)]|-{1,2}>)\s*([\w]+)\s*:\s*(.*)$/)
     if (message) {
       ensureActor(message[1])
       ensureActor(message[3])
       const op = message[2]
-      messages.push({
-        from: message[1],
-        to: message[3],
-        text: message[4].trim(),
-        dashed: op.includes('--'),
-        arrow: op.includes('>>') || op.includes('>') || op.includes('x') || op.includes(')'),
-      })
+      steps.push({ kind: 'message', from: message[1], to: message[3], text: message[4].trim(), dashed: op.includes('--'), arrow: op.includes('>>') || op.includes('>') || op.includes('x') || op.includes(')') })
     }
   }
 
@@ -548,55 +570,98 @@ function parseSequence(code: string, origin: Point, style: DrawStyle): SketchEle
   const spacing = 180
   const boxW = 130
   const boxH = 50
-  const top = 0
-  const firstMsgY = boxH + 44
-  const msgGap = 46
-  const bottom = firstMsgY + messages.length * msgGap + 20
-  const centerX = (i: number) => i * spacing + boxW / 2
+  const rowGap = 46
+  const noteGap = 50
+  const centerX = (i: number) => origin.x + i * spacing + boxW / 2
+  const actorIndex = (id: string) => Math.max(0, actors.indexOf(id))
+
+  // First pass: assign a y to each row-producing step and total height.
+  let y = origin.y + boxH + 36
+  type Placed = { step: SeqStep; y: number }
+  const placed: Placed[] = []
+  for (const step of steps) {
+    if (step.kind === 'message') {
+      placed.push({ step, y })
+      y += rowGap
+    } else if (step.kind === 'note') {
+      placed.push({ step, y })
+      y += noteGap
+    } else {
+      placed.push({ step, y })
+      if (step.kind === 'open') {
+        y += 28 // room for the frame label tab
+      } else if (step.kind === 'divider') {
+        y += 22
+      }
+    }
+  }
+  const bottom = y + 16
 
   const elements: SketchElement[] = []
+
+  // Frames for loop/alt/opt/par blocks (drawn first, behind messages).
+  const stack: Array<{ type: string; label: string; startY: number; minX: number; maxX: number; dividers: Array<{ y: number; label: string }> }> = []
+  placed.forEach((p) => {
+    if (p.step.kind === 'open') {
+      stack.push({ type: p.step.type, label: p.step.label, startY: p.y, minX: Infinity, maxX: -Infinity, dividers: [] })
+    } else if (p.step.kind === 'divider' && stack.length) {
+      stack[stack.length - 1].dividers.push({ y: p.y, label: p.step.label })
+    } else if (p.step.kind === 'close' && stack.length) {
+      const frame = stack.pop()!
+      const pad = 30
+      const x = (Number.isFinite(frame.minX) ? frame.minX : centerX(0)) - pad
+      const right = (Number.isFinite(frame.maxX) ? frame.maxX : centerX(actors.length - 1)) + pad
+      const top = frame.startY - 6
+      elements.push(
+        createElement({ type: 'rectangle', id: generateId('frame'), x, y: top, width: Math.max(80, right - x), height: p.y - top + 4, fill: token('accent'), fillStyle: 'none', stroke: token('muted'), roundness: 4 }, style),
+      )
+      elements.push(textEl(x + 4, top + 2, frame.type + (frame.label ? `: ${frame.label}` : ''), 11, style, { stroke: token('muted') }))
+      for (const divider of frame.dividers) {
+        elements.push(createElement({ type: 'line', id: generateId('div'), x, y: divider.y, width: Math.max(80, right - x), height: 0, points: [{ x: 0, y: 0 }, { x: Math.max(80, right - x), y: 0 }], stroke: token('muted'), strokeStyle: 'dashed' }, style))
+        if (divider.label) {
+          elements.push(textEl(x + 4, divider.y + 2, `[${divider.label}]`, 11, style, { stroke: token('muted') }))
+        }
+      }
+    } else if (p.step.kind === 'message' || p.step.kind === 'note') {
+      // Track x-extent for the enclosing frames.
+      const xs = p.step.kind === 'message' ? [centerX(actorIndex(p.step.from)), centerX(actorIndex(p.step.to))] : p.step.actors.map((a) => centerX(actorIndex(a)))
+      for (const frame of stack) {
+        frame.minX = Math.min(frame.minX, ...xs)
+        frame.maxX = Math.max(frame.maxX, ...xs)
+      }
+    }
+  })
+
+  // Actor boxes + lifelines.
   actors.forEach((id, i) => {
     elements.push(
-      createElement(
-        { type: 'rectangle', id: generateId('actor'), x: origin.x + i * spacing, y: origin.y + top, width: boxW, height: boxH, label: labels.get(id) ?? id, labelFontSize: 14, fill: token('surface'), fillStyle: 'solid', roundness: 6 },
-        style,
-      ),
+      createElement({ type: 'rectangle', id: generateId('actor'), x: origin.x + i * spacing, y: origin.y, width: boxW, height: boxH, label: labels.get(id) ?? id, labelFontSize: 14, fill: token('surface'), fillStyle: 'solid', roundness: 6 }, style),
     )
-    const cx = origin.x + centerX(i)
+    const cx = centerX(i)
     elements.push(
-      createElement(
-        { type: 'line', id: generateId('life'), x: cx, y: origin.y + boxH, width: 0, height: bottom - boxH, points: [{ x: 0, y: 0 }, { x: 0, y: bottom - boxH }], stroke: token('muted'), strokeStyle: 'dashed' },
-        style,
-      ),
+      createElement({ type: 'line', id: generateId('life'), x: cx, y: origin.y + boxH, width: 0, height: bottom - origin.y - boxH, points: [{ x: 0, y: 0 }, { x: 0, y: bottom - origin.y - boxH }], stroke: token('muted'), strokeStyle: 'dashed' }, style),
     )
   })
 
-  messages.forEach((message, k) => {
-    const fromI = actors.indexOf(message.from)
-    const toI = actors.indexOf(message.to)
-    const y = origin.y + firstMsgY + k * msgGap
-    const x1 = origin.x + centerX(fromI)
-    const x2 = origin.x + centerX(toI)
-    const minX = Math.min(x1, x2)
-    elements.push(
-      createElement(
-        {
-          type: 'arrow',
-          id: generateId('msg'),
-          x: minX,
-          y,
-          width: Math.abs(x2 - x1),
-          height: 0,
-          points: [{ x: x1 - minX, y: 0 }, { x: x2 - minX, y: 0 }],
-          strokeStyle: message.dashed ? 'dashed' : 'solid',
-          endArrowhead: message.arrow ? 'triangle' : 'none',
-          label: message.text,
-          labelFontSize: 12,
-        },
-        style,
-      ),
-    )
+  // Messages and notes.
+  placed.forEach((p) => {
+    if (p.step.kind === 'message') {
+      const x1 = centerX(actorIndex(p.step.from))
+      const x2 = centerX(actorIndex(p.step.to))
+      const minX = Math.min(x1, x2)
+      elements.push(
+        createElement({ type: 'arrow', id: generateId('msg'), x: minX, y: p.y, width: Math.abs(x2 - x1), height: 0, points: [{ x: x1 - minX, y: 0 }, { x: x2 - minX, y: 0 }], strokeStyle: p.step.dashed ? 'dashed' : 'solid', endArrowhead: p.step.arrow ? 'triangle' : 'none', label: p.step.text, labelFontSize: 12 }, style),
+      )
+    } else if (p.step.kind === 'note') {
+      const xs = p.step.actors.map((a) => centerX(actorIndex(a)))
+      const nx = Math.min(...xs) - 50
+      const nw = Math.max(...xs) - Math.min(...xs) + 100
+      elements.push(
+        createElement({ type: 'rectangle', id: generateId('note'), x: nx, y: p.y - 14, width: nw, height: 34, label: p.step.text, labelFontSize: 12, fill: literal('#fff3bf'), fillStyle: 'solid', stroke: token('muted') }, style),
+      )
+    }
   })
+
   return elements
 }
 
