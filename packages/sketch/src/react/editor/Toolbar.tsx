@@ -32,6 +32,8 @@ export interface ToolbarProps {
   onSetView: () => void
   snapEnabled: boolean
   onToggleSnap: () => void
+  gridEnabled: boolean
+  onToggleGrid: () => void
   codeOpen: boolean
   onToggleCode: () => void
   panelOpen: boolean
@@ -56,6 +58,8 @@ export function Toolbar({
   onSetView,
   snapEnabled,
   onToggleSnap,
+  gridEnabled,
+  onToggleGrid,
   codeOpen,
   onToggleCode,
   panelOpen,
@@ -156,12 +160,22 @@ export function Toolbar({
       <button
         type="button"
         className="sketch-icon-btn"
-        aria-label="Snap to grid and guides"
+        aria-label="Alignment snapping"
         aria-pressed={snapEnabled}
-        title="Snap to grid and alignment guides"
+        title="Snap to alignment guides (magnet)"
         onClick={onToggleSnap}
       >
         <Icon name="snap" />
+      </button>
+      <button
+        type="button"
+        className="sketch-icon-btn"
+        aria-label="Grid"
+        aria-pressed={gridEnabled}
+        title="Show grid and snap to it"
+        onClick={onToggleGrid}
+      >
+        <Icon name="grid" />
       </button>
       <button
         type="button"

@@ -25,7 +25,7 @@ import {
   createElement,
   elementBounds,
   elementsInMarquee,
-  snapToGrid,
+  snapPoint,
   SNAP_GRID,
   type SnapGuide,
   generateId,
@@ -127,6 +127,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [marquee, setMarquee] = useState<Rect | null>(null)
   const [bindHighlight, setBindHighlight] = useState<string | null>(null)
   const [snapEnabled, setSnapEnabled] = useState(true)
+  const [gridEnabled, setGridEnabled] = useState(false)
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   const [reshaping, setReshaping] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ left: number; top: number; elementId: string } | null>(null)
@@ -494,11 +495,29 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     [camera, canResize, draw, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
   )
 
-  /** Grid-snap a point for create/resize/endpoint gestures when snapping is on. */
-  const gridSnap = useCallback(
-    (p: Point): Point => (snapEnabled ? { x: snapToGrid(p.x), y: snapToGrid(p.y) } : p),
-    [snapEnabled],
+  const snapActive = snapEnabled || gridEnabled
+  /** Snap a draw/resize/endpoint point to other elements (magnet) and/or grid. */
+  const snapDrawPoint = useCallback(
+    (p: Point, excludeId: string | null): { point: Point; guides: SnapGuide[] } => {
+      if (!snapActive) {
+        return { point: p, guides: [] }
+      }
+      const others = scene.elements.filter((el) => el.id !== excludeId).map(elementBounds)
+      const result = snapPoint(p, others, { threshold: 6 * scenePerPixel, magnet: snapEnabled, grid: gridEnabled, gridSize: SNAP_GRID })
+      return { point: { x: result.x, y: result.y }, guides: result.guides }
+    },
+    [gridEnabled, scene.elements, scenePerPixel, snapActive, snapEnabled],
   )
+
+  const gestureElementId = (gesture: Gesture): string | null => {
+    if (gesture.mode === 'create' || gesture.mode === 'arrow' || gesture.mode === 'freedraw') {
+      return gesture.id
+    }
+    if (gesture.mode === 'resize' || gesture.mode === 'point') {
+      return gesture.elementId
+    }
+    return null
+  }
 
   const onPointerMove = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -564,23 +583,25 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         }
       }
 
-      // Snapping: grid for create/resize/endpoints, alignment guides for moves.
+      // Snapping: alignment guides + grid for moves, resizes, draws and endpoints.
       let point = rawPoint
       let guides: SnapGuide[] = []
-      if (snapEnabled) {
-        if (gesture.mode === 'create' || gesture.mode === 'arrow' || gesture.mode === 'resize' || gesture.mode === 'point') {
-          point = gridSnap(rawPoint)
-        } else if (gesture.mode === 'move') {
+      if (snapActive) {
+        if (gesture.mode === 'move') {
           const primaryId = [...gesture.ids][0]
           const primary = gesture.base.elements.find((el) => el.id === primaryId)
           if (primary) {
             const b = elementBounds(primary)
             const moved = { x: b.x + (rawPoint.x - gesture.start.x), y: b.y + (rawPoint.y - gesture.start.y), width: b.width, height: b.height }
             const others = gesture.base.elements.filter((el) => !gesture.ids.has(el.id)).map(elementBounds)
-            const snap = computeSnap(moved, others, { threshold: 6 * scenePerPixel, grid: SNAP_GRID })
+            const snap = computeSnap(moved, others, { threshold: 6 * scenePerPixel, magnet: snapEnabled, grid: gridEnabled, gridSize: SNAP_GRID })
             point = { x: rawPoint.x + snap.dx, y: rawPoint.y + snap.dy }
             guides = snap.guides
           }
+        } else if (gesture.mode === 'create' || gesture.mode === 'arrow' || gesture.mode === 'resize' || gesture.mode === 'point') {
+          const snapped = snapDrawPoint(rawPoint, gestureElementId(gesture))
+          point = snapped.point
+          guides = snapped.guides
         }
       }
       setSnapGuides(guides)
@@ -590,7 +611,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setScene(next)
       }
     },
-    [applyGesture, camera, gridSnap, scene.elements, scenePerPixel, snapEnabled, toScene],
+    [applyGesture, camera, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onPointerUp = useCallback(
@@ -614,19 +635,19 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       const rawPoint = toScene(event.clientX, event.clientY)
       // Re-apply the same snap as the live drag so the committed result matches.
       let point = rawPoint
-      if (snapEnabled) {
-        if (gesture.mode === 'create' || gesture.mode === 'arrow' || gesture.mode === 'resize' || gesture.mode === 'point') {
-          point = gridSnap(rawPoint)
-        } else if (gesture.mode === 'move') {
+      if (snapActive) {
+        if (gesture.mode === 'move') {
           const primaryId = [...gesture.ids][0]
           const primary = gesture.base.elements.find((el) => el.id === primaryId)
           if (primary) {
             const b = elementBounds(primary)
             const moved = { x: b.x + (rawPoint.x - gesture.start.x), y: b.y + (rawPoint.y - gesture.start.y), width: b.width, height: b.height }
             const others = gesture.base.elements.filter((el) => !gesture.ids.has(el.id)).map(elementBounds)
-            const snap = computeSnap(moved, others, { threshold: 6 * scenePerPixel, grid: SNAP_GRID })
+            const snap = computeSnap(moved, others, { threshold: 6 * scenePerPixel, magnet: snapEnabled, grid: gridEnabled, gridSize: SNAP_GRID })
             point = { x: rawPoint.x + snap.dx, y: rawPoint.y + snap.dy }
           }
+        } else if (gesture.mode === 'create' || gesture.mode === 'arrow' || gesture.mode === 'resize' || gesture.mode === 'point') {
+          point = snapDrawPoint(rawPoint, gestureElementId(gesture)).point
         }
       }
       let next = applyGesture(gesture, point)
@@ -694,7 +715,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
       commit(next)
     },
-    [applyGesture, commit, gridSnap, scene.elements, scenePerPixel, snapEnabled, toScene],
+    [applyGesture, commit, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onWheel = useCallback(
@@ -1142,6 +1163,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         onSetView={setDefaultView}
         snapEnabled={snapEnabled}
         onToggleSnap={() => setSnapEnabled((value) => !value)}
+        gridEnabled={gridEnabled}
+        onToggleGrid={() => setGridEnabled((value) => !value)}
         codeOpen={codeOpen}
         onToggleCode={toggleCode}
         panelOpen={panelOpen}
@@ -1188,6 +1211,16 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             xmlns="http://www.w3.org/2000/svg"
           >
             <rect x={viewRect.x} y={viewRect.y} width={viewRect.width} height={viewRect.height} fill={rendered.background} />
+            {gridEnabled && (
+              <>
+                <defs>
+                  <pattern id="sketch-grid" width={SNAP_GRID} height={SNAP_GRID} patternUnits="userSpaceOnUse">
+                    <path d={`M ${SNAP_GRID} 0 L 0 0 0 ${SNAP_GRID}`} fill="none" stroke="var(--sketch-muted, #888)" strokeOpacity={0.28} strokeWidth={scenePerPixel} />
+                  </pattern>
+                </defs>
+                <rect x={viewRect.x} y={viewRect.y} width={viewRect.width} height={viewRect.height} fill="url(#sketch-grid)" pointerEvents="none" />
+              </>
+            )}
             <RenderedScene elements={rendered.elements} />
 
             {bindRect && (

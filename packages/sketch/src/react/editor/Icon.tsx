@@ -47,6 +47,9 @@ export type IconName =
   | 'import'
   | 'close'
   | 'opacity'
+  | 'grid'
+  | 'bucket'
+  | 'pencil'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -248,6 +251,28 @@ function paths(name: IconName) {
         <>
           <circle cx="12" cy="12" r="8" />
           <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" />
+        </>
+      )
+    case 'grid':
+      return (
+        <>
+          <rect x="4" y="4" width="16" height="16" rx="1.5" />
+          <path d="M4 10h16M4 15h16M10 4v16M15 4v16" strokeWidth="1.2" />
+        </>
+      )
+    case 'bucket':
+      return (
+        <>
+          <path d="M5 11l6-6 7 7-6 6a2 2 0 0 1-2.8 0L5 13.8a2 2 0 0 1 0-2.8z" />
+          <path d="M9 5l-2-2" />
+          <path d="M19 14s2 2.4 2 3.8a2 2 0 1 1-4 0c0-1.4 2-3.8 2-3.8z" fill="currentColor" stroke="none" />
+        </>
+      )
+    case 'pencil':
+      return (
+        <>
+          <path d="M14.5 5.5l4 4L9 19l-4 1 1-4z" />
+          <path d="M4 22h16" strokeWidth="1.6" />
         </>
       )
     case 'reshape':

@@ -18,6 +18,7 @@ import {
   rectToViewBox,
   resizeRect,
   snapToGrid,
+  snapPoint,
   sceneContentBounds,
   sceneToSvgString,
   serializeScene,
@@ -317,21 +318,32 @@ test('snapToGrid rounds to the nearest grid line', () => {
   assert.equal(snapToGrid(-4, 10), -0)
 })
 
-test('computeSnap aligns a moving rect to another element edge', () => {
+test('computeSnap (magnet) aligns a moving rect to another element edge', () => {
   const moving = { x: 102, y: 50, width: 40, height: 40 }
   const other = { x: 100, y: 200, width: 40, height: 40 }
-  const result = computeSnap(moving, [other], { threshold: 6 })
-  // Left edges (102 vs 100) within threshold → dx = -2, with a vertical guide.
+  const result = computeSnap(moving, [other], { threshold: 6, magnet: true })
   assert.equal(result.dx, -2)
   assert.ok(result.guides.some((g) => g.axis === 'x' && g.at === 100))
 })
 
-test('computeSnap falls back to grid when nothing aligns', () => {
+test('computeSnap grid (no magnet) snaps to grid without guides', () => {
   const moving = { x: 103, y: 207, width: 40, height: 40 }
-  const result = computeSnap(moving, [], { threshold: 6, grid: 10 })
+  const result = computeSnap(moving, [], { threshold: 6, grid: true, gridSize: 10 })
   assert.equal(result.dx, -3) // 103 -> 100
   assert.equal(result.dy, 3) // 207 -> 210
   assert.equal(result.guides.length, 0)
+})
+
+test('snapPoint magnet snaps a resize handle to an element edge with a guide', () => {
+  const other = { x: 200, y: 0, width: 40, height: 40 }
+  const result = snapPoint({ x: 197, y: 50 }, [other], { threshold: 6, magnet: true })
+  assert.equal(result.x, 200) // snaps to other.x
+  assert.ok(result.guides.some((g) => g.axis === 'x' && g.at === 200))
+})
+
+test('snapPoint grid snaps to grid', () => {
+  const result = snapPoint({ x: 23, y: 48 }, [], { threshold: 6, grid: true, gridSize: 10 })
+  assert.deepEqual({ x: result.x, y: result.y }, { x: 20, y: 50 })
 })
 
 test('toPolygon converts a rectangle to 4 corner vertices', () => {
