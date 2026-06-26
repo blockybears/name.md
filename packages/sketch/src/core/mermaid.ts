@@ -669,71 +669,200 @@ function parseSequence(code: string, origin: Point, style: DrawStyle): SketchEle
 // Gantt (approximate — bars by duration, no real date axis)
 // ---------------------------------------------------------------------------
 
+/** Parse a date into an epoch-day number for common Mermaid dateFormats. */
+function parseGanttDate(value: string, format: string): number | null {
+  const text = value.trim()
+  let y: number
+  let mo: number
+  let d: number
+  if (/YYYY-MM-DD/i.test(format) || /^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const m = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (!m) return null
+    y = +m[1]
+    mo = +m[2]
+    d = +m[3]
+  } else if (/DD\/MM\/YYYY/i.test(format)) {
+    const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    if (!m) return null
+    d = +m[1]
+    mo = +m[2]
+    y = +m[3]
+  } else if (/MM\/DD\/YYYY/i.test(format)) {
+    const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    if (!m) return null
+    mo = +m[1]
+    d = +m[2]
+    y = +m[3]
+  } else if (/YYYY-MM/i.test(format)) {
+    const m = text.match(/^(\d{4})-(\d{2})/)
+    if (!m) return null
+    y = +m[1]
+    mo = +m[2]
+    d = 1
+  } else {
+    const m = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (!m) return null
+    y = +m[1]
+    mo = +m[2]
+    d = +m[3]
+  }
+  return Math.floor(Date.UTC(y, mo - 1, d) / 86400000)
+}
+
+function parseDuration(value: string): number | null {
+  const m = value.trim().match(/^(\d+(?:\.\d+)?)\s*([dwhms]?)$/i)
+  if (!m) return null
+  const n = Number(m[1])
+  switch ((m[2] || 'd').toLowerCase()) {
+    case 'w':
+      return n * 7
+    case 'h':
+      return n / 24
+    case 'm':
+      return n / (24 * 60)
+    default:
+      return n
+  }
+}
+
+function dayToLabel(day: number): string {
+  const ms = day * 86400000
+  const date = new Date(ms)
+  return `${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+}
+
 function parseGantt(code: string, origin: Point, style: DrawStyle): SketchElement[] {
-  const elements: SketchElement[] = []
-  const rowH = 30
-  const labelW = 140
-  const unit = 26 // px per day
+  let dateFormat = 'YYYY-MM-DD'
   let title = ''
-  type Task = { label: string; section: string; duration: number }
-  const tasks: Task[] = []
   let section = ''
+  type Task = { label: string; section: string; id?: string; startDay: number | null; afterId?: string; endDay: number | null; tags: string[] }
+  const tasks: Task[] = []
 
   for (const line of cleanLines(code)) {
     const trimmed = line.trim()
-    if (/^gantt\b/i.test(trimmed) || /^(dateFormat|axisFormat|excludes|todayMarker)\b/i.test(trimmed)) {
+    if (/^gantt\b/i.test(trimmed) || /^(axisFormat|excludes|todayMarker|tickInterval|weekday|includes)\b/i.test(trimmed)) {
       continue
     }
-    const titleMatch = trimmed.match(/^title\s+(.+)$/i)
-    if (titleMatch) {
-      title = titleMatch[1].trim()
+    let m: RegExpMatchArray | null
+    if ((m = trimmed.match(/^dateFormat\s+(.+)$/i))) {
+      dateFormat = m[1].trim()
       continue
     }
-    const sectionMatch = trimmed.match(/^section\s+(.+)$/i)
-    if (sectionMatch) {
-      section = sectionMatch[1].trim()
+    if ((m = trimmed.match(/^title\s+(.+)$/i))) {
+      title = m[1].trim()
+      continue
+    }
+    if ((m = trimmed.match(/^section\s+(.+)$/i))) {
+      section = m[1].trim()
       continue
     }
     const taskMatch = trimmed.match(/^(.+?)\s*:\s*(.+)$/)
-    if (taskMatch) {
-      const meta = taskMatch[2]
-      const dur = meta.match(/(\d+)\s*d\b/)
-      tasks.push({ label: taskMatch[1].trim(), section, duration: dur ? Number(dur[1]) : 3 })
+    if (!taskMatch) {
+      continue
     }
+    const label = taskMatch[1].trim()
+    const parts = taskMatch[2].split(',').map((p) => p.trim())
+    const tags: string[] = []
+    let id: string | undefined
+    let startDay: number | null = null
+    let afterId: string | undefined
+    let endDay: number | null = null
+    for (const part of parts) {
+      if (/^(done|active|crit|milestone)$/i.test(part)) {
+        tags.push(part.toLowerCase())
+      } else if (/^after\s+/i.test(part)) {
+        afterId = part.replace(/^after\s+/i, '').trim().split(/\s+/)[0]
+      } else {
+        const asDate = parseGanttDate(part, dateFormat)
+        const asDur = parseDuration(part)
+        if (startDay === null && afterId === undefined && asDate !== null) {
+          startDay = asDate
+        } else if (asDate !== null && startDay !== null) {
+          endDay = asDate
+        } else if (asDur !== null && endDay === null) {
+          endDay = -asDur // mark as duration (negative sentinel resolved later)
+        } else if (id === undefined && /^[A-Za-z]\w*$/.test(part)) {
+          id = part
+        }
+      }
+    }
+    tasks.push({ label, section, id, startDay, afterId, endDay, tags })
   }
   if (tasks.length === 0) {
     return []
   }
 
+  // Resolve start days (handle `after id`) and durations.
+  const byId = new Map<string, Task>()
+  for (const task of tasks) {
+    if (task.id) byId.set(task.id, task)
+  }
+  const resolveEnd = (task: Task): { start: number; end: number } => {
+    let start = task.startDay
+    if (start === null && task.afterId) {
+      const ref = byId.get(task.afterId)
+      if (ref) {
+        start = resolveEnd(ref).end
+      }
+    }
+    if (start === null) {
+      start = 0
+    }
+    let end: number
+    if (task.endDay === null) {
+      end = start + 1
+    } else if (task.endDay < 0) {
+      end = start - task.endDay // duration
+    } else {
+      end = task.endDay
+    }
+    return { start, end }
+  }
+  const spans = tasks.map((task) => ({ task, ...resolveEnd(task) }))
+  const minDay = Math.min(...spans.map((s) => s.start))
+  const maxDay = Math.max(...spans.map((s) => s.end))
+  const totalDays = Math.max(1, maxDay - minDay)
+
+  const elements: SketchElement[] = []
+  const rowH = 28
+  const rowGap = 8
+  const labelW = 150
+  const chartW = Math.max(300, Math.min(900, totalDays * 26))
+  const dayPx = chartW / totalDays
+  const dayToX = (day: number) => origin.x + labelW + (day - minDay) * dayPx
+
   if (title) {
-    elements.push(createElement({ type: 'text', id: generateId('t'), x: origin.x, y: origin.y - 26, width: title.length * 11, height: 22, text: title, fontSize: 17 }, style))
+    elements.push(textEl(origin.x, origin.y - 28, title, 17, style))
   }
 
-  let cursor = 0
-  tasks.forEach((task, i) => {
-    const y = origin.y + i * (rowH + 8)
-    elements.push(createElement({ type: 'text', id: generateId('lbl'), x: origin.x, y: y + 6, width: labelW - 8, height: rowH, text: task.label, fontSize: 13 }, style))
-    elements.push(
-      createElement(
-        {
-          type: 'rectangle',
-          id: generateId('bar'),
-          x: origin.x + labelW + cursor * unit,
-          y,
-          width: Math.max(unit, task.duration * unit),
-          height: rowH,
-          label: `${task.duration}d`,
-          labelFontSize: 12,
-          fill: token('accent'),
-          fillStyle: 'solid',
-          stroke: token('accent'),
-          roundness: 5,
-        },
-        style,
-      ),
-    )
-    // Cascade the next task to start partway through this one.
-    cursor += Math.max(1, Math.round(task.duration * 0.6))
+  const chartTop = origin.y
+  const chartBottom = origin.y + spans.length * (rowH + rowGap) + 20
+
+  // Date axis: a tick every ~7 days (or daily for short spans).
+  const tickStep = totalDays > 21 ? 7 : totalDays > 7 ? 2 : 1
+  for (let day = minDay; day <= maxDay; day += tickStep) {
+    const x = dayToX(day)
+    elements.push(createElement({ type: 'line', id: generateId('tick'), x, y: chartTop, width: 0, height: chartBottom - chartTop, points: [{ x: 0, y: 0 }, { x: 0, y: chartBottom - chartTop }], stroke: token('muted'), strokeStyle: 'dotted' }, style))
+    elements.push(textEl(x - 14, chartTop - 2, dayToLabel(day), 11, style, { stroke: token('muted') }))
+  }
+
+  let lastSection = ''
+  spans.forEach((span, i) => {
+    const y = origin.y + 18 + i * (rowH + rowGap)
+    if (span.task.section && span.task.section !== lastSection) {
+      elements.push(textEl(origin.x, y - 2, span.task.section, 12, style, { stroke: token('muted') }))
+      lastSection = span.task.section
+    }
+    elements.push(textEl(origin.x, y + 6, span.task.label, 13, style))
+
+    const x = dayToX(span.start)
+    const w = Math.max(8, (span.end - span.start) * dayPx)
+    if (span.task.tags.includes('milestone')) {
+      elements.push(createElement({ type: 'diamond', id: generateId('ms'), x: x - rowH / 2, y, width: rowH, height: rowH, fill: token('accent'), fillStyle: 'solid', stroke: token('accent') }, style))
+    } else {
+      const fill = span.task.tags.includes('crit') ? literal('#e03131') : span.task.tags.includes('done') ? token('muted') : token('accent')
+      elements.push(createElement({ type: 'rectangle', id: generateId('bar'), x, y, width: w, height: rowH, fill, fillStyle: 'solid', stroke: fill, roundness: 5, opacity: span.task.tags.includes('done') ? 0.6 : 1 }, style))
+    }
   })
   return elements
 }

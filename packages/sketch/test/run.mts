@@ -478,12 +478,29 @@ test('mermaid class diagram builds class boxes + relations', () => {
   assert.equal(arrows.length, 1)
 })
 
-test('mermaid gantt builds task bars', () => {
-  const code = 'gantt\n title Plan\n section Build\n Research :3d\n Design :2d\n Ship :1d'
-  const elements = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
-  const bars = elements.filter((e) => e.type === 'rectangle')
-  assert.equal(bars.length, 3)
-  assert.ok(elements.some((e) => e.type === 'text' && e.text === 'Research'))
+test('mermaid gantt scales bars by real dates + after deps + milestone', () => {
+  const code = [
+    'gantt',
+    ' dateFormat YYYY-MM-DD',
+    ' title Plan',
+    ' section Build',
+    ' Research :a1, 2024-01-01, 10d',
+    ' Design :after a1, 5d',
+    ' Launch :milestone, m1, 2024-01-20, 0d',
+  ].join('\n')
+  const els = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
+  const bars = els.filter((e) => e.type === 'rectangle')
+  const milestones = els.filter((e) => e.type === 'diamond')
+  assert.equal(bars.length, 2, 'two task bars')
+  assert.equal(milestones.length, 1, 'milestone diamond')
+  // Design starts after Research ends → its bar x is to the right of Research's.
+  const research = bars[0]
+  const design = bars[1]
+  assert.ok(design.x > research.x + research.width - 1, 'design starts after research ends')
+  // Design (5d) is half the width of Research (10d).
+  assert.ok(Math.abs(design.width - research.width / 2) < 2, 'duration scales width')
+  // Date axis ticks present.
+  assert.ok(els.some((e) => e.type === 'text' && /^\d{2}-\d{2}$/.test(e.text ?? '')), 'date tick labels')
 })
 
 test('mermaid mindmap builds a tree', () => {
