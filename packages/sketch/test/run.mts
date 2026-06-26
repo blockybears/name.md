@@ -32,6 +32,8 @@ import {
   availableViews,
   ganttToGraph,
   renderDiagramInstance,
+  sceneElements,
+  flattenDiagram,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -617,6 +619,31 @@ test('diagram: renderDiagramInstance produces stable ids and renders any view', 
     const again = renderDiagramInstance({ ...base, view })
     assert.equal(sceneToSvgString(createScene({ elements: els })), sceneToSvgString(createScene({ elements: again })))
   }
+})
+
+test('scene with diagrams: render includes them, round-trips, and flattens', () => {
+  const { data } = mermaidToData('gantt\n dateFormat YYYY-MM-DD\n A :a1, 2024-01-01, 6d\n B :after a1, 4d')!
+  const instance = { id: 'd1', seed: 7, x: 100, y: 100, style: 'clean' as const, view: 'gantt' as const, data }
+  const scene = createScene({ diagrams: [instance] })
+  // Render includes the diagram's shapes even though scene.elements is empty.
+  const all = sceneElements(scene)
+  assert.equal(scene.elements.length, 0)
+  assert.ok(all.length > 0, 'diagram rendered into scene elements')
+  assert.ok(all.every((e) => e.id.startsWith('d1:')))
+  // Round-trips through serialize/parse.
+  const parsed = parseScene(serializeScene(scene))
+  assert.equal(parsed.diagrams?.length, 1)
+  assert.equal(parsed.diagrams?.[0].view, 'gantt')
+  assert.equal((parsed.diagrams?.[0].data as { kind: string }).kind, 'gantt')
+  // Switching view changes the rendered output.
+  const asFlow = sceneElements({ ...scene, diagrams: [{ ...instance, view: 'flow-td' }] })
+  assert.notEqual(sceneToSvgString(scene), sceneToSvgString({ ...scene, diagrams: [{ ...instance, view: 'flow-td' }] }))
+  assert.ok(asFlow.length > 0)
+  // Flatten converts to freeform elements and drops the instance.
+  const flat = flattenDiagram(scene, 'd1')
+  assert.equal(flat.diagrams?.length ?? 0, 0)
+  assert.ok(flat.elements.length === all.length, 'all diagram shapes became freeform elements')
+  assert.ok(flat.elements.every((e) => !e.id.startsWith('d1:')), 'flattened elements have fresh ids')
 })
 
 test('jsonToElements builds a tree of nodes + connectors', () => {

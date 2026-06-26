@@ -1,6 +1,6 @@
 import { graphToElements, layeredLayout, type GraphEdge, type GraphNode, type LayoutDirection } from './graphLayout'
-import { createElement, generateId } from './scene'
-import { literal, token, type DrawStyle, type Point, type SketchElement } from './types'
+import { createElement, generateId, generateSeed } from './scene'
+import { literal, token, type DrawStyle, type Point, type Scene, type SketchElement } from './types'
 
 // ---------------------------------------------------------------------------
 // Retained data model — what a diagram *is*, independent of how it's drawn.
@@ -374,4 +374,46 @@ export function renderDiagramInstance(instance: DiagramInstance): SketchElement[
 /** Bounding-box-friendly: the prefix that marks an element as part of a diagram. */
 export function diagramElementPrefix(id: string): string {
   return `${id}:`
+}
+
+// ---------------------------------------------------------------------------
+// Scene integration
+// ---------------------------------------------------------------------------
+
+/** All renderable elements of a scene: freeform elements plus every diagram
+ *  instance rendered to its current view. */
+export function sceneElements(scene: Scene): SketchElement[] {
+  if (!scene.diagrams || scene.diagrams.length === 0) {
+    return scene.elements
+  }
+  const out = [...scene.elements]
+  for (const instance of scene.diagrams) {
+    out.push(...renderDiagramInstance(instance))
+  }
+  return out
+}
+
+/** If an element id belongs to a diagram instance, return that diagram's id. */
+export function diagramIdOfElement(scene: Scene, elementId: string): string | null {
+  for (const instance of scene.diagrams ?? []) {
+    if (elementId.startsWith(`${instance.id}:`)) {
+      return instance.id
+    }
+  }
+  return null
+}
+
+/** Convert a diagram instance into ordinary, freely-editable elements (fresh
+ *  ids/seeds) and drop the instance — the one-way "flatten" escape hatch. */
+export function flattenDiagram(scene: Scene, diagramId: string): Scene {
+  const instance = scene.diagrams?.find((d) => d.id === diagramId)
+  if (!instance) {
+    return scene
+  }
+  const baked = renderDiagramInstance(instance).map((element) => ({ ...element, id: generateId('el'), seed: generateSeed() }))
+  return {
+    ...scene,
+    elements: [...scene.elements, ...baked],
+    diagrams: (scene.diagrams ?? []).filter((d) => d.id !== diagramId),
+  }
 }

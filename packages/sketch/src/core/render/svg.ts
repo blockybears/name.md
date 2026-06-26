@@ -1,5 +1,6 @@
 import { viewBoxForScene, rectToViewBox } from '../camera'
 import { resolveColor } from '../color'
+import { sceneElements } from '../diagram'
 import { diamondPath, ellipsePath, polylinePath, rectPath, roundedRectPoints } from './shapes'
 import {
   ellipsePoints,
@@ -382,7 +383,7 @@ export function renderScene(scene: Scene, options: RenderOptions = {}): RenderSc
   return {
     viewBox: rectToViewBox(viewRect),
     background: resolveColor(scene.background),
-    elements: scene.elements.map(renderElement),
+    elements: sceneElements(scene).map(renderElement),
   }
 }
 

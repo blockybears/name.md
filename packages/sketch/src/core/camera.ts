@@ -1,3 +1,4 @@
+import { sceneElements } from './diagram'
 import { padRect, sceneContentBounds } from './geometry'
 import type { Rect, Scene } from './types'
 
@@ -12,7 +13,7 @@ export function viewBoxForScene(scene: Scene, padding = DEFAULT_VIEW_PADDING): R
   if (scene.defaultView) {
     return scene.defaultView
   }
-  const content = sceneContentBounds(scene.elements)
+  const content = sceneContentBounds(sceneElements(scene))
   if (!content) {
     return FALLBACK_VIEW
   }

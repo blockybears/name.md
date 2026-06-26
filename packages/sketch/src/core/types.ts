@@ -132,9 +132,16 @@ export function hasVertices(element: SketchElement): element is VertexElement {
 
 export const SCENE_VERSION = 1
 
+// Structured diagram instances live alongside freeform elements; they retain
+// their data so they can be re-viewed as different chart types. Typed via a
+// type-only import to avoid a runtime cycle with the diagram module.
+import type { DiagramInstance } from './diagram'
+
 export interface Scene {
   version: number
   elements: SketchElement[]
+  /** Structured, re-viewable diagrams (rendered into elements at draw time). */
+  diagrams?: DiagramInstance[]
   /** Canvas background; defaults to the `canvas` theme token. */
   background: SketchColor
   /** Default style applied to newly created elements. */

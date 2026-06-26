@@ -18,6 +18,7 @@ export function createScene(partial: Partial<Scene> = {}): Scene {
   return {
     version: 1,
     elements: partial.elements ?? [],
+    diagrams: partial.diagrams,
     background: partial.background ?? token('canvas'),
     defaultStyle: partial.defaultStyle ?? 'soft',
     defaultView: partial.defaultView ?? null,
