@@ -420,6 +420,21 @@
   border: 1px solid rgba(127, 127, 127, 0.5);
 }
 
+/* Tool icon with a colour underline showing the current stroke/fill. */
+.sketch-bar-tool {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.sketch-bar-underline {
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+}
+
 /* Menus expand upward from the bottom bar. */
 .sketch-propmenu-panel {
   position: absolute;

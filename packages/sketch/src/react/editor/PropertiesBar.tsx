@@ -56,10 +56,6 @@ const fontSizeOptions: SegOption<number>[] = [
   { value: 40, label: 'XL', title: 'Extra large' },
 ]
 
-function Swatch({ color }: { color: DrawState['stroke'] }) {
-  return <span className="sketch-bar-swatch" style={{ background: colorPreview(color) }} data-checkerboard={isTransparent(color) ? 'true' : undefined} />
-}
-
 /**
  * Compact properties bar: a row of icon buttons that each open a small popover
  * (like the name.md toolbar dropdowns). Usable on mobile — it scrolls
@@ -68,22 +64,11 @@ function Swatch({ color }: { color: DrawState['stroke'] }) {
 export function PropertiesBar({ draw, hasSelection, showFill, showEdges, showArrowheads, showText, onChange, onAction }: PropertiesBarProps) {
   return (
     <div className="sketch-prop-bar" role="toolbar" aria-label="Drawing properties">
-      <PropMenu title="Stroke colour" trigger={<Swatch color={draw.stroke} />}>
-        <ColorSwatches value={draw.stroke} onChange={(stroke) => onChange({ stroke })} />
-      </PropMenu>
-
-      {showFill && (
-        <PropMenu title="Fill" trigger={<Swatch color={draw.fill} />}>
-          <PropMenuRow label="Fill colour">
-            <ColorSwatches value={draw.fill} allowTransparent onChange={(fill) => onChange({ fill })} />
-          </PropMenuRow>
-          <PropMenuRow label="Fill style">
-            <Segmented options={fillStyleOptions} value={draw.fillStyle} onSelect={(fillStyle) => onChange({ fillStyle })} />
-          </PropMenuRow>
-        </PropMenu>
-      )}
-
-      <PropMenu title="Stroke" trigger={<Icon name="dash-solid" />}>
+      {/* Stroke: a pencil whose underline shows the current stroke colour. */}
+      <PropMenu title="Stroke (line)" trigger={<span className="sketch-bar-tool"><Icon name="pencil" /><span className="sketch-bar-underline" style={{ background: colorPreview(draw.stroke) }} /></span>}>
+        <PropMenuRow label="Colour">
+          <ColorSwatches value={draw.stroke} onChange={(stroke) => onChange({ stroke })} />
+        </PropMenuRow>
         <PropMenuRow label="Width">
           <Segmented options={strokeWidthOptions} value={draw.strokeWidth} onSelect={(strokeWidth) => onChange({ strokeWidth })} />
         </PropMenuRow>
@@ -93,7 +78,25 @@ export function PropertiesBar({ draw, hasSelection, showFill, showEdges, showArr
         <PropMenuRow label="Sloppiness">
           <Segmented options={sloppinessOptions} value={draw.style} onSelect={(style) => onChange({ style })} />
         </PropMenuRow>
+        <PropMenuRow label="Opacity">
+          <input type="range" min={0} max={1} step={0.05} value={draw.opacity} onChange={(event) => onChange({ opacity: Number(event.target.value) })} />
+        </PropMenuRow>
       </PropMenu>
+
+      {/* Fill: the recognisable paint-bucket, tinted with the current fill. */}
+      {showFill && (
+        <PropMenu title="Fill" trigger={<span className="sketch-bar-tool"><Icon name="bucket" /><span className="sketch-bar-underline" style={{ background: colorPreview(draw.fill) }} data-checkerboard={isTransparent(draw.fill) ? 'true' : undefined} /></span>}>
+          <PropMenuRow label="Colour">
+            <ColorSwatches value={draw.fill} allowTransparent onChange={(fill) => onChange({ fill })} />
+          </PropMenuRow>
+          <PropMenuRow label="Fill style">
+            <Segmented options={fillStyleOptions} value={draw.fillStyle} onSelect={(fillStyle) => onChange({ fillStyle })} />
+          </PropMenuRow>
+          <PropMenuRow label="Opacity">
+            <input type="range" min={0} max={1} step={0.05} value={draw.fillOpacity} onChange={(event) => onChange({ fillOpacity: Number(event.target.value) })} />
+          </PropMenuRow>
+        </PropMenu>
+      )}
 
       {showEdges && (
         <PropMenu title="Edges" trigger={<Icon name="edge-round" />}>
@@ -117,17 +120,6 @@ export function PropertiesBar({ draw, hasSelection, showFill, showEdges, showArr
           <Segmented options={fontSizeOptions} value={draw.fontSize} onSelect={(fontSize) => onChange({ fontSize })} />
         </PropMenu>
       )}
-
-      <PropMenu title="Opacity" trigger={<Icon name="opacity" />}>
-        <PropMenuRow label="Stroke opacity">
-          <input type="range" min={0} max={1} step={0.05} value={draw.opacity} onChange={(event) => onChange({ opacity: Number(event.target.value) })} />
-        </PropMenuRow>
-        {showFill && (
-          <PropMenuRow label="Fill opacity">
-            <input type="range" min={0} max={1} step={0.05} value={draw.fillOpacity} onChange={(event) => onChange({ fillOpacity: Number(event.target.value) })} />
-          </PropMenuRow>
-        )}
-      </PropMenu>
 
       {hasSelection && (
         <PropMenu title="Arrange" trigger={<Icon name="layer-front" />}>
