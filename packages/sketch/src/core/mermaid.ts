@@ -1,3 +1,14 @@
+import {
+  buildGanttView,
+  buildSeriesView,
+  type DiagramData,
+  type GanttData,
+  type GanttTask,
+  type GraphData,
+  type SeriesData,
+  type SeriesItem,
+  type ViewId,
+} from './diagram'
 import { graphToElements, layeredLayout, type GraphEdge, type GraphNode, type LayoutDirection, type NodeShape } from './graphLayout'
 import { createElement, generateId } from './scene'
 import { literal, token, type DrawStyle, type Point, type SketchElement } from './types'
@@ -129,7 +140,9 @@ function connectorMeta(connector: string): { dashed: boolean; arrow: boolean; la
   return { dashed, arrow, label }
 }
 
-function parseFlowchart(code: string, origin: Point, style: DrawStyle): SketchElement[] {
+/** Extract flowchart structure as a graph (shared by the element path and the
+ *  data path used for view-switching). */
+export function flowchartGraph(code: string): { graph: GraphData; direction: LayoutDirection } {
   const nodes = new Map<string, GraphNode>()
   const edges: GraphEdge[] = []
   let direction: LayoutDirection = 'TD'
@@ -161,7 +174,12 @@ function parseFlowchart(code: string, origin: Point, style: DrawStyle): SketchEl
       prevId = nextId
     }
   }
-  return finishGraph([...nodes.values()], edges, direction, origin, style)
+  return { graph: { kind: 'graph', nodes: [...nodes.values()], edges }, direction }
+}
+
+function parseFlowchart(code: string, origin: Point, style: DrawStyle): SketchElement[] {
+  const { graph, direction } = flowchartGraph(code)
+  return finishGraph(graph.nodes, graph.edges, direction, origin, style)
 }
 
 // ---------------------------------------------------------------------------
@@ -416,13 +434,12 @@ function parseClass(code: string, origin: Point, style: DrawStyle): SketchElemen
 }
 
 // ---------------------------------------------------------------------------
-// Pie chart (rendered as editable polygon sectors)
+// Pie chart (rendered as editable polygon sectors via the shared builder)
 // ---------------------------------------------------------------------------
 
-const pieColors = ['#e03131', '#1971c2', '#2f9e44', '#f08c00', '#9c36b5', '#0c8599', '#e8590c', '#fab005']
-
-function parsePie(code: string, origin: Point, style: DrawStyle): SketchElement[] {
-  const slices: Array<{ label: string; value: number }> = []
+/** Extract pie slices as series data. */
+export function pieSeries(code: string): SeriesData {
+  const items: SeriesItem[] = []
   let title = ''
   for (const line of cleanLines(code)) {
     const trimmed = line.trim()
@@ -433,70 +450,14 @@ function parsePie(code: string, origin: Point, style: DrawStyle): SketchElement[
     }
     const slice = trimmed.match(/^"([^"]+)"\s*:\s*([\d.]+)$/) || trimmed.match(/^([^:]+):\s*([\d.]+)$/)
     if (slice) {
-      slices.push({ label: unquote(slice[1]), value: Number(slice[2]) })
+      items.push({ label: unquote(slice[1]), value: Number(slice[2]) })
     }
   }
-  const total = slices.reduce((sum, s) => sum + s.value, 0)
-  if (total <= 0) {
-    return []
-  }
+  return { kind: 'series', title: title || undefined, items }
+}
 
-  const cx = 160
-  const cy = 160
-  const radius = 140
-  const elements: SketchElement[] = []
-  let angle = -Math.PI / 2
-
-  if (title) {
-    elements.push(
-      createElement(
-        { type: 'text', id: generateId('title'), x: origin.x, y: origin.y - 30, width: title.length * 12, height: 24, text: title, fontSize: 18 },
-        style,
-      ),
-    )
-  }
-
-  slices.forEach((slice, i) => {
-    const sweep = (slice.value / total) * Math.PI * 2
-    const steps = Math.max(2, Math.ceil((sweep / (Math.PI / 2)) * 6))
-    const abs: Point[] = [{ x: cx, y: cy }]
-    for (let t = 0; t <= steps; t += 1) {
-      const a = angle + sweep * (t / steps)
-      abs.push({ x: cx + Math.cos(a) * radius, y: cy + Math.sin(a) * radius })
-    }
-    const minX = Math.min(...abs.map((p) => p.x))
-    const minY = Math.min(...abs.map((p) => p.y))
-    elements.push(
-      createElement(
-        {
-          type: 'polygon',
-          id: generateId('slice'),
-          x: origin.x + minX,
-          y: origin.y + minY,
-          width: Math.max(...abs.map((p) => p.x)) - minX,
-          height: Math.max(...abs.map((p) => p.y)) - minY,
-          points: abs.map((p) => ({ x: p.x - minX, y: p.y - minY })),
-          fill: literal(pieColors[i % pieColors.length]),
-          fillStyle: 'solid',
-          stroke: token('surface'),
-        },
-        style,
-      ),
-    )
-    // Label near the slice's mid radius.
-    const mid = angle + sweep / 2
-    const lx = cx + Math.cos(mid) * radius * 1.18
-    const ly = cy + Math.sin(mid) * radius * 1.18
-    const text = `${slice.label} (${slice.value})`
-    elements.push(
-      createElement(
-        { type: 'text', id: generateId('lbl'), x: origin.x + lx - text.length * 3.5, y: origin.y + ly - 9, width: text.length * 7, height: 18, text, fontSize: 13, align: 'center' },
-        style,
-      ),
-    )
-    angle += sweep
-  })
-  return elements
+function parsePie(code: string, origin: Point, style: DrawStyle): SketchElement[] {
+  return buildSeriesView(pieSeries(code), 'pie', origin, style)
 }
 
 // ---------------------------------------------------------------------------
@@ -725,18 +686,14 @@ function parseDuration(value: string): number | null {
   }
 }
 
-function dayToLabel(day: number): string {
-  const ms = day * 86400000
-  const date = new Date(ms)
-  return `${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
-}
 
-function parseGantt(code: string, origin: Point, style: DrawStyle): SketchElement[] {
+/** Extract gantt structure (resolved day numbers + dependencies) as data. */
+export function ganttData(code: string): GanttData {
   let dateFormat = 'YYYY-MM-DD'
   let title = ''
   let section = ''
-  type Task = { label: string; section: string; id?: string; startDay: number | null; afterId?: string; endDay: number | null; tags: string[] }
-  const tasks: Task[] = []
+  type Raw = { label: string; section: string; id?: string; startDay: number | null; afterId?: string; endDay: number | null; tags: string[] }
+  const raws: Raw[] = []
 
   for (const line of cleanLines(code)) {
     const trimmed = line.trim()
@@ -780,91 +737,51 @@ function parseGantt(code: string, origin: Point, style: DrawStyle): SketchElemen
         } else if (asDate !== null && startDay !== null) {
           endDay = asDate
         } else if (asDur !== null && endDay === null) {
-          endDay = -asDur // mark as duration (negative sentinel resolved later)
+          endDay = -asDur
         } else if (id === undefined && /^[A-Za-z]\w*$/.test(part)) {
           id = part
         }
       }
     }
-    tasks.push({ label, section, id, startDay, afterId, endDay, tags })
-  }
-  if (tasks.length === 0) {
-    return []
+    raws.push({ label, section, id, startDay, afterId, endDay, tags })
   }
 
-  // Resolve start days (handle `after id`) and durations.
-  const byId = new Map<string, Task>()
-  for (const task of tasks) {
-    if (task.id) byId.set(task.id, task)
+  const byId = new Map<string, Raw>()
+  for (const raw of raws) {
+    if (raw.id) byId.set(raw.id, raw)
   }
-  const resolveEnd = (task: Task): { start: number; end: number } => {
-    let start = task.startDay
-    if (start === null && task.afterId) {
-      const ref = byId.get(task.afterId)
+  const resolve = (raw: Raw): { start: number; end: number } => {
+    let start = raw.startDay
+    if (start === null && raw.afterId) {
+      const ref = byId.get(raw.afterId)
       if (ref) {
-        start = resolveEnd(ref).end
+        start = resolve(ref).end
       }
     }
     if (start === null) {
       start = 0
     }
     let end: number
-    if (task.endDay === null) {
+    if (raw.endDay === null) {
       end = start + 1
-    } else if (task.endDay < 0) {
-      end = start - task.endDay // duration
+    } else if (raw.endDay < 0) {
+      end = start - raw.endDay
     } else {
-      end = task.endDay
+      end = raw.endDay
     }
     return { start, end }
   }
-  const spans = tasks.map((task) => ({ task, ...resolveEnd(task) }))
-  const minDay = Math.min(...spans.map((s) => s.start))
-  const maxDay = Math.max(...spans.map((s) => s.end))
-  const totalDays = Math.max(1, maxDay - minDay)
 
-  const elements: SketchElement[] = []
-  const rowH = 28
-  const rowGap = 8
-  const labelW = 150
-  const chartW = Math.max(300, Math.min(900, totalDays * 26))
-  const dayPx = chartW / totalDays
-  const dayToX = (day: number) => origin.x + labelW + (day - minDay) * dayPx
-
-  if (title) {
-    elements.push(textEl(origin.x, origin.y - 28, title, 17, style))
-  }
-
-  const chartTop = origin.y
-  const chartBottom = origin.y + spans.length * (rowH + rowGap) + 20
-
-  // Date axis: a tick every ~7 days (or daily for short spans).
-  const tickStep = totalDays > 21 ? 7 : totalDays > 7 ? 2 : 1
-  for (let day = minDay; day <= maxDay; day += tickStep) {
-    const x = dayToX(day)
-    elements.push(createElement({ type: 'line', id: generateId('tick'), x, y: chartTop, width: 0, height: chartBottom - chartTop, points: [{ x: 0, y: 0 }, { x: 0, y: chartBottom - chartTop }], stroke: token('muted'), strokeStyle: 'dotted' }, style))
-    elements.push(textEl(x - 14, chartTop - 2, dayToLabel(day), 11, style, { stroke: token('muted') }))
-  }
-
-  let lastSection = ''
-  spans.forEach((span, i) => {
-    const y = origin.y + 18 + i * (rowH + rowGap)
-    if (span.task.section && span.task.section !== lastSection) {
-      elements.push(textEl(origin.x, y - 2, span.task.section, 12, style, { stroke: token('muted') }))
-      lastSection = span.task.section
-    }
-    elements.push(textEl(origin.x, y + 6, span.task.label, 13, style))
-
-    const x = dayToX(span.start)
-    const w = Math.max(8, (span.end - span.start) * dayPx)
-    if (span.task.tags.includes('milestone')) {
-      elements.push(createElement({ type: 'diamond', id: generateId('ms'), x: x - rowH / 2, y, width: rowH, height: rowH, fill: token('accent'), fillStyle: 'solid', stroke: token('accent') }, style))
-    } else {
-      const fill = span.task.tags.includes('crit') ? literal('#e03131') : span.task.tags.includes('done') ? token('muted') : token('accent')
-      elements.push(createElement({ type: 'rectangle', id: generateId('bar'), x, y, width: w, height: rowH, fill, fillStyle: 'solid', stroke: fill, roundness: 5, opacity: span.task.tags.includes('done') ? 0.6 : 1 }, style))
-    }
+  const tasks: GanttTask[] = raws.map((raw) => {
+    const { start, end } = resolve(raw)
+    const dep = raw.afterId ? byId.get(raw.afterId)?.label : undefined
+    return { id: raw.id, name: raw.label, startDay: start, endDay: end, deps: dep ? [dep] : [], section: raw.section || undefined, tags: raw.tags }
   })
-  return elements
+  return { kind: 'gantt', title: title || undefined, tasks }
+}
+
+function parseGantt(code: string, origin: Point, style: DrawStyle): SketchElement[] {
+  return buildGanttView(ganttData(code), origin, style)
 }
 
 // ---------------------------------------------------------------------------
@@ -1453,4 +1370,31 @@ export function mermaidToElements(code: string, origin: Point = { x: 0, y: 0 }, 
   // best-effort — extract any A-->B edges so it still imports something.
   const generic = parseGenericGraph(code, origin, style)
   return generic.length > 0 ? generic : parseFlowchart(code, origin, style)
+}
+
+// ---------------------------------------------------------------------------
+// Structured-data extraction (for view-switching): produce DiagramData for the
+// convertible diagram families. Returns null for kinds we only bake to shapes.
+// ---------------------------------------------------------------------------
+
+/** Parse Mermaid into a retained data model + a suggested default view, when
+ *  the diagram type supports re-viewing as other chart types. */
+export function mermaidToData(code: string): { data: DiagramData; view: ViewId } | null {
+  const head = (code.trim().match(/^\s*([A-Za-z-]+)/)?.[1] ?? '').toLowerCase()
+  if (head === 'graph' || head === 'flowchart') {
+    const { graph, direction } = flowchartGraph(code)
+    if (graph.nodes.length === 0) return null
+    return { data: graph, view: direction === 'LR' || direction === 'RL' ? 'flow-lr' : 'flow-td' }
+  }
+  if (head === 'gantt') {
+    const data = ganttData(code)
+    if (data.tasks.length === 0) return null
+    return { data, view: 'gantt' }
+  }
+  if (head === 'pie') {
+    const data = pieSeries(code)
+    if (data.items.length === 0) return null
+    return { data, view: 'pie' }
+  }
+  return null
 }

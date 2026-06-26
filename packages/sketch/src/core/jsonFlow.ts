@@ -1,3 +1,4 @@
+import type { GraphData, ViewId } from './diagram'
 import { graphToElements, layeredLayout, type GraphEdge, type GraphNode } from './graphLayout'
 import type { DrawStyle, Point, SketchElement } from './types'
 
@@ -10,17 +11,14 @@ function formatPrimitive(value: unknown): string {
   return String(value)
 }
 
-/**
- * Turn a JSON value into a tree of labelled nodes + parent→child connectors,
- * rendered as editable sketch elements (objects/arrays branch, primitives are
- * leaves). Returns [] for invalid JSON.
- */
-export function jsonToElements(jsonText: string, origin: Point = { x: 0, y: 0 }, style: DrawStyle = 'soft'): SketchElement[] {
+/** Turn a JSON value into a tree graph (objects/arrays branch, primitives are
+ *  leaves). Returns null for invalid JSON. */
+export function jsonGraph(jsonText: string): GraphData | null {
   let root: unknown
   try {
     root = JSON.parse(jsonText)
   } catch {
-    return []
+    return null
   }
 
   const nodes: GraphNode[] = []
@@ -59,10 +57,24 @@ export function jsonToElements(jsonText: string, origin: Point = { x: 0, y: 0 },
   }
 
   walk(root, null, null)
-  if (nodes.length === 0) {
+  return nodes.length === 0 ? null : { kind: 'graph', nodes, edges }
+}
+
+/**
+ * Turn a JSON value into editable sketch elements (a left-to-right tree).
+ * Returns [] for invalid JSON.
+ */
+export function jsonToElements(jsonText: string, origin: Point = { x: 0, y: 0 }, style: DrawStyle = 'soft'): SketchElement[] {
+  const graph = jsonGraph(jsonText)
+  if (!graph) {
     return []
   }
-  // Left-to-right tree reads best for nested data.
-  const layout = layeredLayout(nodes, edges, 'LR')
-  return graphToElements(nodes, edges, layout, origin, style)
+  const layout = layeredLayout(graph.nodes, graph.edges, 'LR')
+  return graphToElements(graph.nodes, graph.edges, layout, origin, style)
+}
+
+/** Parse JSON into graph data + default view, for view-switching. */
+export function jsonToData(jsonText: string): { data: GraphData; view: ViewId } | null {
+  const graph = jsonGraph(jsonText)
+  return graph ? { data: graph, view: 'flow-lr' } : null
 }

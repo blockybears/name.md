@@ -28,6 +28,10 @@ import {
   normalizeVertexBounds,
   pointInPolygon,
   mermaidToElements,
+  mermaidToData,
+  availableViews,
+  ganttToGraph,
+  renderDiagramInstance,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -575,6 +579,44 @@ test('mermaid class deepening: generics and annotations', () => {
 test('mermaid unknown diagram falls back to edge extraction', () => {
   const els = mermaidToElements('block-beta\n A --> B\n B --> C', { x: 0, y: 0 }, 'clean')
   assert.ok(els.filter((e) => e.type !== 'arrow').length >= 2)
+})
+
+test('diagram: gantt data offers gantt + graph + series views', () => {
+  const { data } = mermaidToData('gantt\n dateFormat YYYY-MM-DD\n A :a1, 2024-01-01, 5d\n B :after a1, 3d')!
+  const views = availableViews(data).map((v) => v.id)
+  assert.ok(views.includes('gantt'))
+  assert.ok(views.includes('flow-td'), 'gantt → flowchart available')
+  assert.ok(views.includes('pie'), 'gantt → pie available')
+})
+
+test('diagram: graph data does NOT offer pie/gantt (no values/dates)', () => {
+  const { data } = mermaidToData('graph TD\n A-->B\n B-->C')!
+  const views = availableViews(data).map((v) => v.id)
+  assert.ok(views.includes('flow-td'))
+  assert.ok(!views.includes('pie'), 'graph has no values → no pie')
+  assert.ok(!views.includes('gantt'), 'graph has no dates → no gantt')
+})
+
+test('diagram: ganttToGraph chains tasks by dependency', () => {
+  const { data } = mermaidToData('gantt\n dateFormat YYYY-MM-DD\n A :a1, 2024-01-01, 5d\n B :after a1, 3d\n C :after a1, 2d')!
+  const graph = ganttToGraph(data as never)
+  assert.equal(graph.nodes.length, 3)
+  // A→B and A→C edges (both depend on a1)
+  assert.ok(graph.edges.some((e) => e.from === 'a1' && e.to === 'B'))
+  assert.ok(graph.edges.some((e) => e.from === 'a1' && e.to === 'C'))
+})
+
+test('diagram: renderDiagramInstance produces stable ids and renders any view', () => {
+  const { data } = mermaidToData('gantt\n dateFormat YYYY-MM-DD\n A :a1, 2024-01-01, 6d\n B :after a1, 4d')!
+  const base = { id: 'd1', seed: 42, x: 0, y: 0, style: 'clean' as const, data }
+  for (const view of ['gantt', 'flow-td', 'pie', 'timeline'] as const) {
+    const els = renderDiagramInstance({ ...base, view })
+    assert.ok(els.length > 0, `${view} produced elements`)
+    assert.ok(els.every((e) => e.id.startsWith('d1:')), `${view} ids are diagram-prefixed`)
+    // Deterministic: same render twice → identical.
+    const again = renderDiagramInstance({ ...base, view })
+    assert.equal(sceneToSvgString(createScene({ elements: els })), sceneToSvgString(createScene({ elements: again })))
+  }
 })
 
 test('jsonToElements builds a tree of nodes + connectors', () => {
