@@ -18,8 +18,14 @@ import {
   type SketchElement,
   applyResize,
   angleToPointer,
+  availableViews,
   bindableAt,
   cameraViewRect,
+  diagramIdOfElement,
+  flattenDiagram,
+  sceneElements,
+  type DiagramInstance,
+  type ViewId,
   computeSnap,
   createDiagram,
   createElement,
@@ -33,8 +39,10 @@ import {
   handlePositions,
   hasVertices,
   hitTest,
+  jsonToData,
   jsonToElements,
   looksLikeMermaid,
+  mermaidToData,
   mermaidToElements,
   History,
   identityCamera,
@@ -74,6 +82,7 @@ type Gesture =
   | { mode: 'resize'; handle: ResizeHandle; elementId: string; baseRect: Rect; base: Scene }
   | { mode: 'point'; elementId: string; index: number; base: Scene }
   | { mode: 'rotate'; elementId: string; base: Scene }
+  | { mode: 'diagram-move'; diagramId: string; start: Point; baseX: number; baseY: number; base: Scene }
   | { mode: 'marquee'; start: Point; additive: boolean; baseSelection: string[]; base: Scene }
 
 export interface SketchCanvasProps {
@@ -131,6 +140,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   const [reshaping, setReshaping] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ left: number; top: number; elementId: string } | null>(null)
+  const [selectedDiagramId, setSelectedDiagramId] = useState<string | null>(null)
+  const [viewMenuOpen, setViewMenuOpen] = useState(false)
   const [codeOpen, setCodeOpen] = useState(false)
   const [codeText, setCodeText] = useState('')
   const [codeError, setCodeError] = useState<string | null>(null)
@@ -176,6 +187,20 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const viewRect = useMemo(() => cameraViewRect(camera, size.width, size.height), [camera, size])
   const rendered = useMemo(() => renderScene(scene, { viewBox: viewRect }), [scene, viewRect])
   const scenePerPixel = 1 / camera.zoom
+  // Freeform elements + every diagram rendered to its current view (for
+  // hit-testing; freeform editing still operates only on scene.elements).
+  const flatElements = useMemo(() => sceneElements(scene), [scene])
+  const selectedDiagram = useMemo<DiagramInstance | null>(
+    () => scene.diagrams?.find((d) => d.id === selectedDiagramId) ?? null,
+    [scene.diagrams, selectedDiagramId],
+  )
+  const diagramRect = useMemo<Rect | null>(() => {
+    if (!selectedDiagramId) {
+      return null
+    }
+    const els = flatElements.filter((el) => el.id.startsWith(`${selectedDiagramId}:`))
+    return els.length ? unionRects(els.map(elementBounds)) : null
+  }, [flatElements, selectedDiagramId])
 
   const toScene = useCallback(
     (clientX: number, clientY: number): Point => {
@@ -474,6 +499,22 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         }
       }
 
+      // Hit-test everything (including diagram-rendered shapes). A hit on a
+      // diagram selects the diagram as a unit and starts a diagram move.
+      const flatHit = hitTest(flatElements, point, HIT_TOL_PX * scenePerPixel)
+      const diagramId = flatHit ? diagramIdOfElement(scene, flatHit.id) : null
+      if (diagramId) {
+        const instance = scene.diagrams?.find((d) => d.id === diagramId)
+        setSelectedDiagramId(diagramId)
+        setSelected([])
+        setViewMenuOpen(false)
+        if (instance) {
+          gestureRef.current = { mode: 'diagram-move', diagramId, start: point, baseX: instance.x, baseY: instance.y, base: scene }
+        }
+        return
+      }
+      setSelectedDiagramId(null)
+
       const hit = hitTest(scene.elements, point, HIT_TOL_PX * scenePerPixel)
       if (hit) {
         let nextSelection = selected
@@ -492,7 +533,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setSelected([])
       }
     },
-    [camera, canResize, draw, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
+    [camera, canResize, draw, flatElements, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
   )
 
   const snapActive = snapEnabled || gridEnabled
@@ -558,6 +599,18 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return
       }
       const rawPoint = toScene(event.clientX, event.clientY)
+
+      if (gesture.mode === 'diagram-move') {
+        const dx = rawPoint.x - gesture.start.x
+        const dy = rawPoint.y - gesture.start.y
+        setScene({
+          ...gesture.base,
+          diagrams: (gesture.base.diagrams ?? []).map((d) =>
+            d.id === gesture.diagramId ? { ...d, x: gesture.baseX + dx, y: gesture.baseY + dy } : d,
+          ),
+        })
+        return
+      }
 
       if (gesture.mode === 'marquee') {
         const rect = normalizeRect(gesture.start, rawPoint)
@@ -629,6 +682,21 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         event.currentTarget.releasePointerCapture(event.pointerId)
       }
       if (gesture.mode === 'none' || gesture.mode === 'pan' || gesture.mode === 'marquee') {
+        return
+      }
+
+      if (gesture.mode === 'diagram-move') {
+        const dropPoint = toScene(event.clientX, event.clientY)
+        const dx = dropPoint.x - gesture.start.x
+        const dy = dropPoint.y - gesture.start.y
+        if (dx !== 0 || dy !== 0) {
+          commit({
+            ...gesture.base,
+            diagrams: (gesture.base.diagrams ?? []).map((d) =>
+              d.id === gesture.diagramId ? { ...d, x: gesture.baseX + dx, y: gesture.baseY + dy } : d,
+            ),
+          })
+        }
         return
       }
 
@@ -754,9 +822,18 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   // without re-subscribing on every change (synced after each render).
   const selectedIdsRef = useRef<string[]>([])
   const editLabelRef = useRef(editLabelOf)
+  const deleteDiagramRef = useRef<() => boolean>(() => false)
   useEffect(() => {
     selectedIdsRef.current = selected
     editLabelRef.current = editLabelOf
+    deleteDiagramRef.current = () => {
+      if (!selectedDiagramId) {
+        return false
+      }
+      commit({ ...scene, diagrams: (scene.diagrams ?? []).filter((d) => d.id !== selectedDiagramId) })
+      setSelectedDiagramId(null)
+      return true
+    }
   })
 
   // --- double-click: edit text/label ---
@@ -981,12 +1058,55 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     [commit, scene, viewRect],
   )
 
+  /** Insert a structured, re-viewable diagram (retains its data). */
+  const insertStructuredDiagram = useCallback(
+    (data: DiagramInstance['data'], view: ViewId) => {
+      const origin = { x: viewRect.x + 60, y: viewRect.y + 60 }
+      const instance: DiagramInstance = { id: generateId('dg'), seed: generateSeed(), x: origin.x, y: origin.y, style: draw.style, view, data }
+      commit({ ...scene, diagrams: [...(scene.diagrams ?? []), instance] })
+      setSelectedDiagramId(instance.id)
+      setSelected([])
+      setTool('select')
+      return true
+    },
+    [commit, draw.style, scene, viewRect],
+  )
+
+  const switchDiagramView = useCallback(
+    (view: ViewId) => {
+      if (!selectedDiagramId) {
+        return
+      }
+      commit({ ...scene, diagrams: (scene.diagrams ?? []).map((d) => (d.id === selectedDiagramId ? { ...d, view } : d)) })
+      setViewMenuOpen(false)
+    },
+    [commit, scene, selectedDiagramId],
+  )
+
+  const flattenSelectedDiagram = useCallback(() => {
+    if (!selectedDiagramId) {
+      return
+    }
+    const flat = flattenDiagram(scene, selectedDiagramId)
+    commit(flat)
+    setSelectedDiagramId(null)
+    setViewMenuOpen(false)
+  }, [commit, scene, selectedDiagramId])
+
   const openImport = useCallback((type: 'mermaid' | 'json') => {
     setImportState({ type, text: '', error: null })
   }, [])
 
   const applyImport = useCallback(() => {
     if (!importState) {
+      return
+    }
+    // Convertible kinds (flowchart/graph, gantt, pie, json) become structured,
+    // re-viewable diagrams; everything else bakes to freeform shapes.
+    const structured = importState.type === 'mermaid' ? mermaidToData(importState.text) : jsonToData(importState.text)
+    if (structured) {
+      insertStructuredDiagram(structured.data, structured.view)
+      setImportState(null)
       return
     }
     const elements =
@@ -998,7 +1118,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       return
     }
     setImportState(null)
-  }, [draw.style, importState, insertElements])
+  }, [draw.style, importState, insertStructuredDiagram, insertElements])
 
   // Paste native Mermaid text straight onto the canvas.
   const onPaste = useCallback(
@@ -1078,9 +1198,13 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
-        deleteSelected()
+        if (!deleteDiagramRef.current()) {
+          deleteSelected()
+        }
       } else if (event.key === 'Escape') {
         setSelected([])
+        setSelectedDiagramId(null)
+        setViewMenuOpen(false)
         setTool('select')
         setReshaping(false)
         setContextMenu(null)
@@ -1274,6 +1398,22 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               <rect x={marquee.x} y={marquee.y} width={marquee.width} height={marquee.height} fill="var(--sketch-accent, #2563eb)" fillOpacity={0.08} stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} pointerEvents="none" />
             )}
 
+            {diagramRect && (
+              <rect
+                x={diagramRect.x - 8 * scenePerPixel}
+                y={diagramRect.y - 8 * scenePerPixel}
+                width={diagramRect.width + 16 * scenePerPixel}
+                height={diagramRect.height + 16 * scenePerPixel}
+                fill="var(--sketch-accent, #2563eb)"
+                fillOpacity={0.04}
+                stroke="var(--sketch-accent, #2563eb)"
+                strokeWidth={1.5 * scenePerPixel}
+                strokeDasharray={`${6 * scenePerPixel} ${4 * scenePerPixel}`}
+                rx={6 * scenePerPixel}
+                pointerEvents="none"
+              />
+            )}
+
             {snapGuides.map((guide, i) =>
               guide.axis === 'x' ? (
                 <line key={i} x1={guide.at} y1={guide.from} x2={guide.at} y2={guide.to} stroke="#f43f5e" strokeWidth={scenePerPixel} pointerEvents="none" />
@@ -1324,6 +1464,41 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               </button>
               <button type="button" className="sketch-context-danger" onClick={() => { onLayerAction('delete'); setContextMenu(null) }}>
                 Delete
+              </button>
+            </div>
+          )}
+
+          {selectedDiagram && diagramRect && (
+            <div
+              className="sketch-diagram-toolbar"
+              style={{
+                left: (diagramRect.x - camera.x) * camera.zoom,
+                top: Math.max(4, (diagramRect.y - camera.y) * camera.zoom - 44),
+              }}
+            >
+              <div className="sketch-diagram-viewas">
+                <button type="button" className="sketch-diagram-btn" onClick={() => setViewMenuOpen((open) => !open)} aria-expanded={viewMenuOpen}>
+                  <Icon name="chart" /> View as <Icon name="chevron-down" />
+                </button>
+                {viewMenuOpen && (
+                  <div className="sketch-diagram-menu" role="menu">
+                    {availableViews(selectedDiagram.data).map((view) => (
+                      <button
+                        key={view.id}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={selectedDiagram.view === view.id}
+                        className={selectedDiagram.view === view.id ? 'is-active' : undefined}
+                        onClick={() => switchDiagramView(view.id)}
+                      >
+                        {view.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button type="button" className="sketch-diagram-btn" onClick={flattenSelectedDiagram} title="Convert to editable shapes (one-way)">
+                Flatten
               </button>
             </div>
           )}

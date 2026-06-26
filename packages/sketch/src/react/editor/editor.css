@@ -420,6 +420,78 @@
   border: 1px solid rgba(127, 127, 127, 0.5);
 }
 
+/* Floating toolbar for a selected structured diagram (View as / Flatten). */
+.sketch-diagram-toolbar {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  padding: 4px;
+  border-radius: 9px;
+  background: var(--sketch-surface, #fff);
+  border: 1px solid rgba(127, 127, 127, 0.28);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+
+.sketch-diagram-viewas {
+  position: relative;
+}
+
+.sketch-diagram-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--sketch-foreground, #1f2937);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sketch-diagram-btn:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+.sketch-diagram-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sketch-diagram-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: 9px;
+  background: var(--sketch-surface, #fff);
+  border: 1px solid rgba(127, 127, 127, 0.28);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.sketch-diagram-menu button {
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sketch-foreground, #1f2937);
+  font-size: 13px;
+  cursor: pointer;
+}
+.sketch-diagram-menu button:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+.sketch-diagram-menu button.is-active {
+  background: var(--sketch-accent, #2563eb);
+  color: #fff;
+}
+
 /* Tool icon with a colour underline showing the current stroke/fill. */
 .sketch-bar-tool {
   display: inline-flex;

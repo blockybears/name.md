@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react'
-import { createElement, createScene, literal, token, type DrawStyle, type Scene } from '../src'
+import { createElement, createScene, literal, mermaidToData, token, type DrawStyle, type Scene } from '../src'
 import { SketchView } from '../src/react'
 import { SketchCanvas } from '../src/react/SketchCanvas'
 
 type Theme = 'light' | 'warm' | 'dark'
+
+// A structured gantt that can be re-viewed as flowchart / mind map / pie / bar
+// etc. — select it on the canvas and use "View as".
+const SAMPLE_GANTT = `gantt
+  dateFormat YYYY-MM-DD
+  title Launch plan
+  Market study :a1, 2024-01-01, 10d
+  Interviews :after a1, 6d
+  Prototype :crit, after a1, 12d
+  Polish :after a1, 5d`
 
 function sampleScene(style: DrawStyle) {
   const elements = [
@@ -14,7 +24,9 @@ function sampleScene(style: DrawStyle) {
     createElement({ type: 'text', x: 44, y: 330, width: 360, height: 32, text: 'Sketch engine — read view', fontSize: 24 }, style),
     createElement({ type: 'rectangle', x: 320, y: 210, width: 130, height: 78, stroke: literal('#e11d48'), fillStyle: 'solid', fill: literal('#fecdd3') }, style),
   ]
-  return createScene({ elements, defaultStyle: style })
+  const structured = mermaidToData(SAMPLE_GANTT)
+  const diagrams = structured ? [{ id: 'demo-gantt', seed: 123, x: 40, y: 430, style, view: structured.view, data: structured.data }] : undefined
+  return createScene({ elements, diagrams, defaultStyle: style })
 }
 
 export function Demo() {

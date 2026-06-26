@@ -50,6 +50,8 @@ export type IconName =
   | 'grid'
   | 'bucket'
   | 'pencil'
+  | 'chart'
+  | 'chevron-down'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -275,6 +277,18 @@ function paths(name: IconName) {
           <path d="M4 22h16" strokeWidth="1.6" />
         </>
       )
+    case 'chart':
+      return (
+        <>
+          <path d="M4 20V4" />
+          <path d="M4 20h16" />
+          <rect x="7" y="12" width="3" height="5" />
+          <rect x="12" y="8" width="3" height="9" />
+          <rect x="17" y="14" width="3" height="3" />
+        </>
+      )
+    case 'chevron-down':
+      return <path d="M6 9l6 6 6-6" />
     case 'reshape':
       return (
         <>
