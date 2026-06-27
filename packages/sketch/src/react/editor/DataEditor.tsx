@@ -2,7 +2,8 @@ import { useMemo, useState, type ClipboardEvent } from 'react'
 import {
   csvToGantt,
   csvToSeries,
-  dayToISO,
+  daysToDurationStr,
+  dayToDateTime,
   ganttFromRows,
   gridToTsv,
   parseDelimited,
@@ -30,14 +31,20 @@ const emptyGanttRow = (): GanttRow => ({ name: '', start: '', duration: '', deps
 const emptySeriesRow = (): SeriesRow => ({ label: '', value: '' })
 
 function ganttToRows(data: GanttData): GanttRow[] {
-  return data.tasks.map((task) => ({
-    name: task.name,
-    start: dayToISO(task.startDay),
-    duration: String(Math.round((task.endDay - task.startDay) * 10) / 10),
-    deps: task.deps.join(', '),
-    tags: task.tags.join(', '),
-    section: task.section,
-  }))
+  return data.tasks.map((task, i) => {
+    // A blank-start row gets an implicit "follows previous row" dependency; hide
+    // that one so the After column shows only deps the user would recognise.
+    const prevName = i > 0 ? data.tasks[i - 1].name : null
+    const isImplicit = prevName !== null && task.deps.length === 1 && task.deps[0] === prevName
+    return {
+      name: task.name,
+      start: dayToDateTime(task.startDay),
+      duration: task.tags.includes('milestone') ? '0' : daysToDurationStr(task.endDay - task.startDay),
+      deps: isImplicit ? '' : task.deps.join(', '),
+      tags: task.tags.filter((t) => t !== 'milestone').join(', '),
+      section: task.section,
+    }
+  })
 }
 function seriesToRows(data: SeriesData): SeriesRow[] {
   return data.items.map((item) => ({ label: item.label, value: String(item.value) }))
@@ -70,6 +77,14 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
   const editSeries = (i: number, key: keyof SeriesRow, value: string) => setSeries(seriesRows.map((r, j) => (j === i ? { ...r, [key]: value } : r)))
   const removeGantt = (i: number) => setGanttRows(ganttRows.length > 1 ? ganttRows.filter((_, j) => j !== i) : [emptyGanttRow()])
   const removeSeries = (i: number) => setSeriesRows(seriesRows.length > 1 ? seriesRows.filter((_, j) => j !== i) : [emptySeriesRow()])
+  const addRow = () => (kind === 'gantt' ? setGanttRows([...ganttRows, emptyGanttRow()]) : setSeriesRows([...seriesRows, emptySeriesRow()]))
+  // Enter in a row adds a new row (and an explicit "+ Add row" button below).
+  const onRowKeyDown = (event: { key: string; preventDefault: () => void }) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      addRow()
+    }
+  }
 
   const fillFromPaste = (text: string) => {
     if (kind === 'gantt') {
@@ -126,8 +141,8 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
               <thead>
                 <tr>
                   <th>Task</th>
-                  <th>Start (YYYY-MM-DD)</th>
-                  <th>Days</th>
+                  <th>Start (date / time)</th>
+                  <th>Duration</th>
                   <th>After</th>
                   <th>Tags</th>
                   <th aria-label="remove" />
@@ -136,11 +151,11 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
               <tbody>
                 {ganttRows.map((row, i) => (
                   <tr key={i}>
-                    <td><input value={row.name} placeholder="Task name" onChange={(e) => editGantt(i, 'name', e.target.value)} /></td>
-                    <td><input value={row.start} placeholder="(or blank)" onChange={(e) => editGantt(i, 'start', e.target.value)} /></td>
-                    <td><input className="sketch-data-num" value={row.duration} placeholder="5" onChange={(e) => editGantt(i, 'duration', e.target.value)} /></td>
-                    <td><input value={row.deps} placeholder="dep task" onChange={(e) => editGantt(i, 'deps', e.target.value)} /></td>
-                    <td><input value={row.tags} placeholder="crit, done…" onChange={(e) => editGantt(i, 'tags', e.target.value)} /></td>
+                    <td><input value={row.name} placeholder="Task name" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'name', e.target.value)} /></td>
+                    <td><input value={row.start} placeholder="2024-05-01 09:00" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'start', e.target.value)} /></td>
+                    <td><input className="sketch-data-num" value={row.duration} placeholder="5d / 2h / 0" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'duration', e.target.value)} /></td>
+                    <td><input value={row.deps} placeholder="dep task" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'deps', e.target.value)} /></td>
+                    <td><input value={row.tags} placeholder="crit, done…" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'tags', e.target.value)} /></td>
                     <td><button type="button" className="sketch-data-del" aria-label="Remove row" onClick={() => removeGantt(i)}>×</button></td>
                   </tr>
                 ))}
@@ -158,13 +173,21 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
               <tbody>
                 {seriesRows.map((row, i) => (
                   <tr key={i}>
-                    <td><input value={row.label} placeholder="Category" onChange={(e) => editSeries(i, 'label', e.target.value)} /></td>
-                    <td><input className="sketch-data-num" value={row.value} placeholder="0" onChange={(e) => editSeries(i, 'value', e.target.value)} /></td>
+                    <td><input value={row.label} placeholder="Category" onKeyDown={onRowKeyDown} onChange={(e) => editSeries(i, 'label', e.target.value)} /></td>
+                    <td><input className="sketch-data-num" value={row.value} placeholder="0" onKeyDown={onRowKeyDown} onChange={(e) => editSeries(i, 'value', e.target.value)} /></td>
                     <td><button type="button" className="sketch-data-del" aria-label="Remove row" onClick={() => removeSeries(i)}>×</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+          <button type="button" className="sketch-data-addrow" onClick={addRow}>
+            + Add row
+          </button>
+          {kind === 'gantt' && (
+            <p className="sketch-data-hint">
+              Blank start → follows the previous task. Duration units: <code>m h d w mo</code>. Milestone = duration <code>0</code>. “After” sets dependencies.
+            </p>
           )}
         </div>
 

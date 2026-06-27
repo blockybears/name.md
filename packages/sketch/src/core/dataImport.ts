@@ -1,4 +1,4 @@
-import { isoToDay, type GanttData, type GanttTask, type SeriesData } from './diagram'
+import { dayToISO, isoToDay, type GanttData, type GanttTask, type SeriesData } from './diagram'
 
 // ---------------------------------------------------------------------------
 // Spreadsheet (CSV / TSV) parsing — small, dependency-free, paste-friendly.
@@ -104,6 +104,85 @@ function splitList(cell: string | undefined): string[] {
   return cell ? cell.split(/[;,|]/).map((s) => s.trim()).filter(Boolean) : []
 }
 
+// --- time + duration parsing (gantt) -------------------------------------
+// Internally a gantt uses a continuous epoch-DAY number, so an hour is 1/24,
+// a minute 1/1440. This keeps sub-day tasks and times-of-day exact.
+
+const UNIT_DAYS: Record<string, number> = {
+  min: 1 / 1440, m: 1 / 1440, minute: 1 / 1440, minutes: 1 / 1440,
+  h: 1 / 24, hr: 1 / 24, hrs: 1 / 24, hour: 1 / 24, hours: 1 / 24,
+  d: 1, day: 1, days: 1,
+  w: 7, wk: 7, wks: 7, week: 7, weeks: 7,
+  mo: 30, mon: 30, month: 30, months: 30,
+  y: 365, yr: 365, year: 365, years: 365,
+}
+
+/** Parse a duration like "30m", "2h", "3d", "1.5w", "2mo" → days (float).
+ *  A bare number is days. Returns null if unparseable. */
+export function parseGanttDuration(value: string): number | null {
+  const s = value.trim().toLowerCase()
+  if (s === '') {
+    return null
+  }
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([a-z]+)?$/)
+  if (!m) {
+    return null
+  }
+  const n = Number(m[1])
+  const unit = m[2] ?? 'd'
+  const factor = UNIT_DAYS[unit]
+  return factor === undefined ? null : n * factor
+}
+
+/** Parse a start like "2024-05-01" or "2024-05-01 09:30" → epoch-day float. */
+export function parseGanttStart(value: string): number | null {
+  const s = value.trim()
+  if (s === '') {
+    return null
+  }
+  const m = s.match(/^(\d{4}-\d{1,2}-\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$/)
+  if (!m) {
+    return null
+  }
+  const day = isoToDay(m[1])
+  if (day === null) {
+    return null
+  }
+  const frac = m[2] ? (Number(m[2]) * 60 + Number(m[3])) / 1440 : 0
+  return day + frac
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** Epoch-day float → "YYYY-MM-DD" (or with " HH:MM" when it has a time). */
+export function dayToDateTime(day: number): string {
+  const whole = Math.floor(day + 1e-9)
+  const frac = day - whole
+  const date = dayToISO(whole)
+  if (frac < 1e-6) {
+    return date
+  }
+  const mins = Math.round(frac * 1440)
+  return `${date} ${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`
+}
+
+/** Days (float) → a compact human duration string for the editor round-trip. */
+export function daysToDurationStr(days: number): string {
+  if (days <= 0) {
+    return '0'
+  }
+  if (days < 1 / 24) {
+    return `${Math.round(days * 1440)}m`
+  }
+  if (days < 1) {
+    return `${Math.round(days * 24 * 10) / 10}h`
+  }
+  if (days >= 7 && Number.isInteger(days / 7)) {
+    return `${days / 7}w`
+  }
+  return `${Math.round(days * 10) / 10}d`
+}
+
 // --- shared row → data (used by both CSV import and the data-table editor) ---
 
 export interface SeriesRow {
@@ -117,6 +196,7 @@ export interface GanttRow {
   deps: string
   tags: string
   section?: string
+  id?: string
 }
 
 export function seriesFromRows(rows: SeriesRow[], title?: string): SeriesData {
@@ -126,23 +206,50 @@ export function seriesFromRows(rows: SeriesRow[], title?: string): SeriesData {
   return { kind: 'series', title: title?.trim() || undefined, items }
 }
 
-/** Resolve hand-entered gantt rows to day-numbered tasks. A blank start chains
- *  the task after the previous row's end (a bare list becomes a waterfall). */
+/**
+ * Resolve hand-entered gantt rows to day-numbered tasks. Start priority:
+ *   1. an explicit date/time,
+ *   2. else after the listed dependencies (succession),
+ *   3. else chained after the previous row — which also records the previous
+ *      task as an implicit dependency so the chain is a real succession (and
+ *      shows up in the critical-path computation).
+ */
 export function ganttFromRows(rows: GanttRow[], title?: string): GanttData {
   const tasks: GanttTask[] = []
-  let cursor = 0
+  const endByKey = new Map<string, number>()
+  let prevName: string | null = null
   for (const row of rows) {
     const name = row.name.trim()
     if (!name) {
       continue
     }
-    const start = isoToDay(row.start)
-    const duration = parseNumber(row.duration) ?? 1
+    const explicit = parseGanttStart(row.start)
+    const userDeps = splitList(row.deps)
     const tags = splitList(row.tags).map((t) => t.toLowerCase())
-    const startDay = start ?? cursor
-    const endDay = startDay + (tags.includes('milestone') ? 0 : Math.max(0.5, duration))
-    cursor = endDay
-    tasks.push({ name, startDay, endDay, deps: splitList(row.deps), section: row.section?.trim() || undefined, tags })
+    const rawDuration = parseGanttDuration(row.duration)
+    const milestone = tags.includes('milestone') || rawDuration === 0
+    const duration = milestone ? 0 : Math.max(0.25, rawDuration ?? 1)
+
+    let deps = userDeps
+    let startDay: number
+    if (explicit !== null) {
+      startDay = explicit
+    } else if (userDeps.length) {
+      startDay = Math.max(0, ...userDeps.map((d) => endByKey.get(d) ?? 0))
+    } else if (prevName !== null) {
+      startDay = endByKey.get(prevName) ?? 0
+      deps = [prevName] // implicit succession so the chain is a real dependency
+    } else {
+      startDay = 0
+    }
+    const endDay = startDay + duration
+    const task: GanttTask = { name, startDay, endDay, deps, section: row.section?.trim() || undefined, tags: milestone && !tags.includes('milestone') ? [...tags, 'milestone'] : tags }
+    tasks.push(task)
+    endByKey.set(name, endDay)
+    if (row.id?.trim()) {
+      endByKey.set(row.id.trim(), endDay)
+    }
+    prevName = name
   }
   return { kind: 'gantt', title: title?.trim() || undefined, tasks }
 }
@@ -170,9 +277,9 @@ export function csvToGantt(text: string): GanttData {
     return { kind: 'gantt', tasks: [] }
   }
   let body = rows
-  // Header if the first row's "duration" cell (col 2) isn't numeric and col 1
-  // isn't a date.
-  if (rows[0].length >= 2 && parseNumber(rows[0][2] ?? '') === null && isoToDay(rows[0][1] ?? '') === null) {
+  // Header if the first row's "duration" cell (col 2) isn't a duration and col 1
+  // isn't a date/time.
+  if (rows[0].length >= 2 && parseGanttDuration(rows[0][2] ?? '') === null && parseGanttStart(rows[0][1] ?? '') === null) {
     body = rows.slice(1)
   }
   return ganttFromRows(body.map((row) => ({ name: row[0] ?? '', start: row[1] ?? '', duration: row[2] ?? '', deps: row[3] ?? '', tags: row[4] ?? '' })))

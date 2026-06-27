@@ -531,6 +531,33 @@
   color: #e03131;
 }
 
+.sketch-data-addrow {
+  margin: 8px 0 0;
+  padding: 7px 12px;
+  border: 1px dashed rgba(127, 127, 127, 0.4);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sketch-accent, #2563eb);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sketch-data-addrow:hover {
+  background: rgba(127, 127, 127, 0.08);
+}
+.sketch-data-hint {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sketch-muted, #6b7280);
+}
+.sketch-data-hint code {
+  font-family: ui-monospace, monospace;
+  background: rgba(127, 127, 127, 0.14);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
 .sketch-data-paste-toggle {
   display: inline-flex;
   align-items: center;

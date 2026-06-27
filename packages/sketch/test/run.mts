@@ -37,6 +37,9 @@ import {
   csvToSeries,
   csvToGantt,
   parseDelimited,
+  parseGanttDuration,
+  parseGanttStart,
+  ganttFromRows,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -640,6 +643,39 @@ test('parseDelimited handles quoted fields with commas and newlines', () => {
   const rows = parseDelimited('name,note\n"Smith, Jr.","line1\nline2"\nDoe,ok')
   assert.deepEqual(rows[1], ['Smith, Jr.', 'line1\nline2'])
   assert.deepEqual(rows[2], ['Doe', 'ok'])
+})
+
+test('gantt durations support units (m/h/d/w) and datetimes', () => {
+  const near = (a: number | null, b: number) => assert.ok(a !== null && Math.abs(a - b) < 1e-9, `${a} ≈ ${b}`)
+  near(parseGanttDuration('2h'), 2 / 24)
+  near(parseGanttDuration('30m'), 30 / 1440)
+  near(parseGanttDuration('3d'), 3)
+  near(parseGanttDuration('2w'), 14)
+  near(parseGanttDuration('5'), 5)
+  assert.equal(parseGanttDuration('nope'), null)
+  // datetime start: 06:00 = quarter day past the date
+  const noon = parseGanttStart('2024-05-01 12:00')!
+  const midnight = parseGanttStart('2024-05-01')!
+  assert.ok(Math.abs(noon - midnight - 0.5) < 1e-9)
+})
+
+test('ganttFromRows: blank start chains as a real succession dependency', () => {
+  const data = ganttFromRows([
+    { name: 'A', start: '2024-05-01', duration: '2d', deps: '', tags: '' },
+    { name: 'B', start: '', duration: '3d', deps: '', tags: '' },
+    { name: 'C', start: '', duration: '1d', deps: 'A', tags: '' },
+  ])
+  const [a, b, c] = data.tasks
+  assert.equal(b.startDay, a.endDay, 'B follows A')
+  assert.deepEqual(b.deps, ['A'], 'implicit succession recorded')
+  assert.equal(c.startDay, a.endDay, 'C starts after its explicit dep A')
+  assert.deepEqual(c.deps, ['A'])
+})
+
+test('ganttFromRows: duration 0 makes a milestone', () => {
+  const data = ganttFromRows([{ name: 'Launch', start: '2024-06-01', duration: '0', deps: '', tags: '' }])
+  assert.equal(data.tasks[0].startDay, data.tasks[0].endDay)
+  assert.ok(data.tasks[0].tags.includes('milestone'))
 })
 
 test('csvToGantt chains blank starts and scales durations', () => {
