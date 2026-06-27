@@ -27,7 +27,7 @@ export interface DataEditorProps {
   onClose: () => void
 }
 
-const emptyGanttRow = (): GanttRow => ({ name: '', start: '', duration: '', deps: '', tags: '' })
+const emptyGanttRow = (): GanttRow => ({ name: '', start: '', duration: '', deps: '', tags: '', progress: '' })
 const emptySeriesRow = (): SeriesRow => ({ label: '', value: '' })
 
 function ganttToRows(data: GanttData): GanttRow[] {
@@ -45,6 +45,7 @@ function ganttToRows(data: GanttData): GanttRow[] {
       deps: isImplicit ? '' : task.deps.join(', '),
       tags: task.tags.filter((t) => t !== 'milestone').join(', '),
       section: task.section,
+      progress: task.progress != null ? String(task.progress) : '',
     }
   })
 }
@@ -146,6 +147,7 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
                   <th>Start (date / time)</th>
                   <th>Duration</th>
                   <th>After</th>
+                  <th>%</th>
                   <th>Tags</th>
                   <th aria-label="remove" />
                 </tr>
@@ -156,7 +158,8 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
                     <td><input value={row.name} placeholder="Task name" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'name', e.target.value)} /></td>
                     <td><input value={row.start} placeholder="2024-05-01 09:00" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'start', e.target.value)} /></td>
                     <td><input className="sketch-data-num" value={row.duration} placeholder="5d / 2h / 0" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'duration', e.target.value)} /></td>
-                    <td><input value={row.deps} placeholder="dep task" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'deps', e.target.value)} /></td>
+                    <td><input value={row.deps} placeholder="Task, Other:SS+1d" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'deps', e.target.value)} /></td>
+                    <td><input className="sketch-data-num sketch-data-pct" value={row.progress ?? ''} placeholder="0" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'progress', e.target.value)} /></td>
                     <td><input value={row.tags} placeholder="crit, done…" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'tags', e.target.value)} /></td>
                     <td><button type="button" className="sketch-data-del" aria-label="Remove row" onClick={() => removeGantt(i)}>×</button></td>
                   </tr>
@@ -188,7 +191,8 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
           </button>
           {kind === 'gantt' && (
             <p className="sketch-data-hint">
-              Blank start → follows the previous task. Duration units: <code>m h d w mo</code>. Milestone = duration <code>0</code>. “After” sets dependencies.
+              Blank start → follows previous task. Units: <code>m h d w mo</code>. Milestone = <code>0</code>. % = progress.
+              Links: <code>Task</code>, <code>Task+2d</code> (lag), <code>Task:SS</code>/<code>FF</code>/<code>SF</code>.
             </p>
           )}
         </div>

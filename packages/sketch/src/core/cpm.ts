@@ -1,4 +1,4 @@
-import type { GanttData, GanttTask } from './diagram'
+import { depConstraintStart, parseDep, type GanttData, type GanttDep, type GanttTask } from './diagram'
 
 // ---------------------------------------------------------------------------
 // Critical Path Method (lightweight). Forward pass gives earliest start/finish
@@ -40,14 +40,17 @@ export function computeSchedule(gantt: GanttData): Schedule {
       indexOf.set(task.id, i)
     }
   })
-  const preds: number[][] = tasks.map((task) =>
-    task.deps.map((d) => indexOf.get(d)).filter((x): x is number => x !== undefined),
+  // Predecessors, each with its parsed link type + lag.
+  const preds: { index: number; dep: GanttDep }[][] = tasks.map((task) =>
+    task.deps
+      .map((spec) => ({ index: indexOf.get(parseDep(spec).task), dep: parseDep(spec) }))
+      .filter((p): p is { index: number; dep: GanttDep } => p.index !== undefined),
   )
   const succs: number[][] = tasks.map(() => [])
-  preds.forEach((ps, i) => ps.forEach((p) => succs[p].push(i)))
+  preds.forEach((ps, i) => ps.forEach((p) => succs[p.index].push(i)))
   const hasDependencies = preds.some((p) => p.length > 0)
 
-  // Forward pass: ES = max(own resolved start, EF of predecessors).
+  // Forward pass: ES respects the task's own resolved start and every link.
   const es = new Array(n).fill(0)
   const ef = new Array(n).fill(0)
   const fdone = new Set<number>()
@@ -66,8 +69,8 @@ export function computeSchedule(gantt: GanttData): Schedule {
     fpath.add(i)
     let start = tasks[i].startDay
     for (const p of preds[i]) {
-      forward(p)
-      start = Math.max(start, ef[p])
+      forward(p.index)
+      start = Math.max(start, depConstraintStart(p.dep, es[p.index], ef[p.index], dur(i)))
     }
     es[i] = start
     ef[i] = start + dur(i)

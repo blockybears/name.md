@@ -124,6 +124,7 @@ function coerceDiagramData(value: unknown): DiagramData | null {
           section: typeof t.section === 'string' ? t.section : undefined,
           tags: Array.isArray(t.tags) ? (t.tags.filter((x) => typeof x === 'string') as string[]) : [],
           pinned: t.pinned === true ? true : undefined,
+          progress: typeof t.progress === 'number' ? t.progress : undefined,
         })),
     }
   }

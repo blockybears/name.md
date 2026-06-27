@@ -42,6 +42,7 @@ import {
   ganttFromRows,
   computeSchedule,
   renderView,
+  parseDep,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -695,6 +696,37 @@ test('ganttFromRows: duration 0 makes a milestone', () => {
   const data = ganttFromRows([{ name: 'Launch', start: '2024-06-01', duration: '0', deps: '', tags: '' }])
   assert.equal(data.tasks[0].startDay, data.tasks[0].endDay)
   assert.ok(data.tasks[0].tags.includes('milestone'))
+})
+
+test('gantt renders a progress fill for a partly-done task', () => {
+  const gantt = ganttFromRows([{ name: 'Build', start: '2024-01-01', duration: '10d', deps: '', tags: '', progress: '60' }])
+  assert.equal(gantt.tasks[0].progress, 60)
+  const els = renderView(gantt, 'gantt', { x: 0, y: 0 }, 'clean')
+  const bars = els.filter((e) => e.type === 'rectangle' && e.fillStyle === 'solid')
+  // A full bar + a progress bar that is ~60% of the full width.
+  assert.equal(bars.length, 2)
+  const [full, prog] = bars.sort((a, b) => b.width - a.width)
+  assert.ok(Math.abs(prog.width / full.width - 0.6) < 0.02, 'progress bar is ~60% width')
+})
+
+test('parseDep handles type + lag specs', () => {
+  assert.deepEqual(parseDep('Design'), { task: 'Design', type: 'FS', lag: 0 })
+  assert.deepEqual(parseDep('Design+2d'), { task: 'Design', type: 'FS', lag: 2 })
+  assert.deepEqual(parseDep('Setup:SS'), { task: 'Setup', type: 'SS', lag: 0 })
+  const ff = parseDep('QA:FF-1d')
+  assert.equal(ff.task, 'QA')
+  assert.equal(ff.type, 'FF')
+  assert.ok(Math.abs(ff.lag + 1) < 1e-9)
+})
+
+test('ganttFromRows honours SS link + lag', () => {
+  // B starts 1d after A *starts* (SS+1d), not after A finishes.
+  const data = ganttFromRows([
+    { name: 'A', start: '2024-01-01', duration: '5d', deps: '', tags: '' },
+    { name: 'B', start: '', duration: '2d', deps: 'A:SS+1d', tags: '' },
+  ])
+  const [a, b] = data.tasks
+  assert.equal(b.startDay, a.startDay + 1, 'B starts 1d after A starts')
 })
 
 test('computeSchedule finds the critical path and float on a parallel branch', () => {

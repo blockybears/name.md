@@ -34,6 +34,8 @@ export interface GanttTask {
   /** True when the start was an explicit user date (vs. derived from deps/order).
    *  Derived starts stay blank on round-trip so succession links survive. */
   pinned?: boolean
+  /** Percent complete, 0–100. */
+  progress?: number
 }
 export interface GanttData {
   kind: 'gantt'
@@ -123,7 +125,7 @@ export function ganttToGraph(gantt: GanttData): GraphData {
   gantt.tasks.forEach((task) => {
     if (task.deps.length) {
       for (const dep of task.deps) {
-        const from = byName.get(dep)
+        const from = byName.get(parseDep(dep).task)
         if (from) {
           edges.push({ from, to: nodeId(task), arrow: true })
         }
@@ -280,6 +282,12 @@ function clockLabel(day: number): string {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`
 }
 
+/** Today as an epoch-day number (UTC). Null only if the clock is unavailable. */
+function todayDay(): number | null {
+  const now = Date.now()
+  return Number.isFinite(now) ? Math.floor(now / 86400000) : null
+}
+
 /** Epoch-day number ⇄ ISO date (YYYY-MM-DD), used by the data editor. */
 export function isoToDay(iso: string): number | null {
   const m = iso.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
@@ -292,6 +300,120 @@ export function isoToDay(iso: string): number | null {
 export function dayToISO(day: number): string {
   const date = new Date(Math.round(day) * 86400000)
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+}
+
+// --- time + duration parsing (a gantt uses continuous epoch-DAY numbers) ---
+
+const UNIT_DAYS: Record<string, number> = {
+  min: 1 / 1440, m: 1 / 1440, minute: 1 / 1440, minutes: 1 / 1440,
+  h: 1 / 24, hr: 1 / 24, hrs: 1 / 24, hour: 1 / 24, hours: 1 / 24,
+  d: 1, day: 1, days: 1,
+  w: 7, wk: 7, wks: 7, week: 7, weeks: 7,
+  mo: 30, mon: 30, month: 30, months: 30,
+  y: 365, yr: 365, year: 365, years: 365,
+}
+
+/** Parse a duration like "30m", "2h", "3d", "1.5w", "2mo" → days (float). A bare
+ *  number is days. Returns null if unparseable. */
+export function parseGanttDuration(value: string): number | null {
+  const s = value.trim().toLowerCase()
+  if (s === '') {
+    return null
+  }
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([a-z]+)?$/)
+  if (!m) {
+    return null
+  }
+  const factor = UNIT_DAYS[m[2] ?? 'd']
+  return factor === undefined ? null : Number(m[1]) * factor
+}
+
+/** Parse a start like "2024-05-01" or "2024-05-01 09:30" → epoch-day float. */
+export function parseGanttStart(value: string): number | null {
+  const s = value.trim()
+  if (s === '') {
+    return null
+  }
+  const m = s.match(/^(\d{4}-\d{1,2}-\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$/)
+  if (!m) {
+    return null
+  }
+  const day = isoToDay(m[1])
+  if (day === null) {
+    return null
+  }
+  return day + (m[2] ? (Number(m[2]) * 60 + Number(m[3])) / 1440 : 0)
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** Epoch-day float → "YYYY-MM-DD" (or with " HH:MM" when it has a time). */
+export function dayToDateTime(day: number): string {
+  const whole = Math.floor(day + 1e-9)
+  const date = dayToISO(whole)
+  const frac = day - whole
+  if (frac < 1e-6) {
+    return date
+  }
+  const mins = Math.round(frac * 1440)
+  return `${date} ${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}`
+}
+
+/** Days (float) → a compact human duration string for the editor round-trip. */
+export function daysToDurationStr(days: number): string {
+  if (days <= 0) {
+    return '0'
+  }
+  if (days < 1 / 24) {
+    return `${Math.round(days * 1440)}m`
+  }
+  if (days < 1) {
+    return `${Math.round(days * 24 * 10) / 10}h`
+  }
+  if (days >= 7 && Number.isInteger(days / 7)) {
+    return `${days / 7}w`
+  }
+  return `${Math.round(days * 10) / 10}d`
+}
+
+// --- dependency specs: "Task", "Task+2d", "Task:SS", "Task:FF-1d" ----------
+
+export type DepType = 'FS' | 'SS' | 'FF' | 'SF'
+export interface GanttDep {
+  task: string
+  type: DepType
+  /** Lag in days (may be negative for lead). */
+  lag: number
+}
+
+/** Parse a dependency spec. Default link type is finish-to-start (FS). */
+export function parseDep(spec: string): GanttDep {
+  const m = spec.trim().match(/^(.*?)(?::(FS|SS|FF|SF))?\s*([+-]\s*\d+(?:\.\d+)?\s*[a-z]*)?$/i)
+  if (!m || !m[1].trim()) {
+    return { task: spec.trim(), type: 'FS', lag: 0 }
+  }
+  const type = (m[2]?.toUpperCase() as DepType) ?? 'FS'
+  let lag = 0
+  if (m[3]) {
+    const sign = m[3].trim().startsWith('-') ? -1 : 1
+    const mag = parseGanttDuration(m[3].replace(/^[+-]\s*/, '').trim())
+    lag = sign * (mag ?? 0)
+  }
+  return { task: m[1].trim(), type, lag }
+}
+
+/** The earliest a successor may start/finish given a predecessor's schedule. */
+export function depConstraintStart(dep: GanttDep, predStart: number, predEnd: number, succDuration: number): number {
+  switch (dep.type) {
+    case 'SS':
+      return predStart + dep.lag
+    case 'FF':
+      return predEnd + dep.lag - succDuration
+    case 'SF':
+      return predStart + dep.lag - succDuration
+    default:
+      return predEnd + dep.lag
+  }
 }
 
 const CRITICAL_COLOR = '#e03131'
@@ -332,7 +454,8 @@ export function buildGanttView(gantt: GanttData, origin: Point, style: DrawStyle
   schedule.tasks.forEach((s, i) => {
     const startX = dayToX(s.task.startDay)
     s.task.deps.forEach((dep) => {
-      const pi = gantt.tasks.findIndex((t) => t.name === dep || t.id === dep)
+      const depName = parseDep(dep).task
+      const pi = gantt.tasks.findIndex((t) => t.name === depName || t.id === depName)
       if (pi < 0) {
         return
       }
@@ -387,8 +510,23 @@ export function buildGanttView(gantt: GanttData, origin: Point, style: DrawStyle
     const critical = s.critical || task.tags.includes('crit')
     const fill = critical ? literal(CRITICAL_COLOR) : task.tags.includes('done') ? token('muted') : token('accent')
     const w = Math.max(8, (task.endDay - task.startDay) * dayPx)
-    elements.push(createElement({ type: 'rectangle', id: generateId('bar'), x, y, width: w, height: rowH, fill, fillStyle: 'solid', stroke: fill, roundness: 5, opacity: task.tags.includes('done') ? 0.55 : 1 }, style))
+    const done = task.tags.includes('done')
+    const pct = done ? 100 : task.progress ?? 0
+    const partial = pct > 0 && pct < 100
+    // When partly done, draw the bar lighter so the darker progress fill reads.
+    elements.push(createElement({ type: 'rectangle', id: generateId('bar'), x, y, width: w, height: rowH, fill, fillStyle: 'solid', stroke: fill, roundness: 5, opacity: done ? 0.55 : partial ? 0.32 : 1 }, style))
+    if (partial) {
+      elements.push(createElement({ type: 'rectangle', id: generateId('prog'), x, y, width: Math.max(4, (w * pct) / 100), height: rowH, fill, fillStyle: 'solid', stroke: fill, roundness: 5 }, style))
+    }
   })
+
+  // "Today" marker — only when the current date falls within the plan.
+  const today = todayDay()
+  if (today !== null && today > minDay && today < maxDay) {
+    const tx = dayToX(today)
+    elements.push(lineEl(tx, chartTop - 4, tx, chartBottom, style, { stroke: literal('#e8590c'), strokeWidth: 1.5 }))
+    elements.push(textEl(tx - 14, chartBottom + 2, 'today', 10, style, { stroke: literal('#e8590c') }))
+  }
   return elements
 }
 
@@ -437,7 +575,7 @@ export function buildNetworkView(gantt: GanttData, origin: Point, style: DrawSty
   const edges: GraphEdge[] = []
   gantt.tasks.forEach((task) => {
     for (const dep of task.deps) {
-      const from = byKey.get(dep)
+      const from = byKey.get(parseDep(dep).task)
       if (from) {
         edges.push({ from, to: nodeId(task), arrow: true })
       }
