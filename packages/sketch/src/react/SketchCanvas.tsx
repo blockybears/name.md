@@ -24,9 +24,12 @@ import {
   defaultViewFor,
   diagramIdOfElement,
   flattenDiagram,
+  ganttGeometry,
+  rescheduleGantt,
   sceneElements,
   type DiagramInstance,
   type GanttData,
+  type GanttGeometry,
   type SeriesData,
   type ViewId,
   computeSnap,
@@ -87,6 +90,7 @@ type Gesture =
   | { mode: 'point'; elementId: string; index: number; base: Scene }
   | { mode: 'rotate'; elementId: string; base: Scene }
   | { mode: 'diagram-move'; diagramId: string; start: Point; baseX: number; baseY: number; base: Scene }
+  | { mode: 'gantt-edit'; diagramId: string; taskIndex: number; editMode: 'move' | 'resize-start' | 'resize-end'; grabOffset: number; base: Scene; baseGantt: GanttData }
   | { mode: 'marquee'; start: Point; additive: boolean; baseSelection: string[]; base: Scene }
 
 export interface SketchCanvasProps {
@@ -206,6 +210,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     const els = flatElements.filter((el) => el.id.startsWith(`${selectedDiagramId}:`))
     return els.length ? unionRects(els.map(elementBounds)) : null
   }, [flatElements, selectedDiagramId])
+  // Geometry for drag-editing a selected gantt's bars (only in the gantt view).
+  const ganttEditGeo = useMemo<GanttGeometry | null>(
+    () =>
+      selectedDiagram && selectedDiagram.data.kind === 'gantt' && selectedDiagram.view === 'gantt'
+        ? ganttGeometry(selectedDiagram.data, { x: selectedDiagram.x, y: selectedDiagram.y })
+        : null,
+    [selectedDiagram],
+  )
 
   const toScene = useCallback(
     (clientX: number, clientY: number): Point => {
@@ -424,6 +436,41 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return
       }
 
+      // Drag-edit a bar of the selected gantt: edges resize, body moves.
+      if (tool === 'select' && ganttEditGeo && selectedDiagram && selectedDiagram.data.kind === 'gantt') {
+        const tol = HIT_TOL_PX * scenePerPixel
+        for (const bar of ganttEditGeo.bars) {
+          if (point.y < bar.y - 4 * scenePerPixel || point.y > bar.y + bar.h + 4 * scenePerPixel) {
+            continue
+          }
+          const task = selectedDiagram.data.tasks[bar.index]
+          let editMode: 'move' | 'resize-start' | 'resize-end' | null = null
+          if (bar.milestone) {
+            if (point.x >= bar.x - bar.h && point.x <= bar.x + bar.h) {
+              editMode = 'move'
+            }
+          } else if (Math.abs(point.x - (bar.x + bar.w)) <= tol) {
+            editMode = 'resize-end'
+          } else if (Math.abs(point.x - bar.x) <= tol) {
+            editMode = 'resize-start'
+          } else if (point.x >= bar.x && point.x <= bar.x + bar.w) {
+            editMode = 'move'
+          }
+          if (editMode) {
+            gestureRef.current = {
+              mode: 'gantt-edit',
+              diagramId: selectedDiagram.id,
+              taskIndex: bar.index,
+              editMode,
+              grabOffset: task.startDay - ganttEditGeo.xToDay(point.x),
+              base: scene,
+              baseGantt: selectedDiagram.data,
+            }
+            return
+          }
+        }
+      }
+
       if (tool === 'text') {
         const id = generateId('text')
         const element = createElement({ type: 'text', id, x: point.x, y: point.y, width: 20, height: draw.fontSize * 1.25, text: '', fontSize: draw.fontSize, stroke: draw.stroke, opacity: draw.opacity, style: draw.style }, draw.style)
@@ -538,7 +585,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setSelected([])
       }
     },
-    [camera, canResize, draw, flatElements, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
+    [camera, canResize, draw, flatElements, ganttEditGeo, selectedDiagram, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
   )
 
   const snapActive = snapEnabled || gridEnabled
@@ -564,6 +611,33 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     }
     return null
   }
+
+  /** Apply a live gantt bar drag (move / resize) and reschedule dependents. */
+  const applyGanttEdit = useCallback((gesture: Extract<Gesture, { mode: 'gantt-edit' }>, point: Point): Scene => {
+    const inst = gesture.base.diagrams?.find((d) => d.id === gesture.diagramId)
+    if (!inst) {
+      return gesture.base
+    }
+    const geo = ganttGeometry(gesture.baseGantt, { x: inst.x, y: inst.y })
+    const snap = (d: number) => (geo.maxDay - geo.minDay <= 2 ? Math.round(d * 24) / 24 : Math.round(d))
+    const task = gesture.baseGantt.tasks[gesture.taskIndex]
+    const dur = Math.max(0.25, task.endDay - task.startDay)
+    const milestone = task.tags.includes('milestone')
+    let edited = task
+    if (gesture.editMode === 'move') {
+      const ns = snap(geo.xToDay(point.x) + gesture.grabOffset)
+      edited = { ...task, startDay: ns, endDay: milestone ? ns : ns + dur, pinned: true }
+    } else if (gesture.editMode === 'resize-start') {
+      const ns = Math.min(snap(geo.xToDay(point.x)), task.endDay - 0.25)
+      edited = { ...task, startDay: ns, pinned: true }
+    } else {
+      const ne = Math.max(snap(geo.xToDay(point.x)), task.startDay + 0.25)
+      edited = { ...task, endDay: ne }
+    }
+    const tasks = gesture.baseGantt.tasks.map((t, i) => (i === gesture.taskIndex ? edited : t))
+    const data = rescheduleGantt({ ...gesture.baseGantt, tasks })
+    return { ...gesture.base, diagrams: (gesture.base.diagrams ?? []).map((d) => (d.id === gesture.diagramId ? { ...d, data } : d)) }
+  }, [])
 
   const onPointerMove = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -614,6 +688,11 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             d.id === gesture.diagramId ? { ...d, x: gesture.baseX + dx, y: gesture.baseY + dy } : d,
           ),
         })
+        return
+      }
+
+      if (gesture.mode === 'gantt-edit') {
+        setScene(applyGanttEdit(gesture, rawPoint))
         return
       }
 
@@ -669,7 +748,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setScene(next)
       }
     },
-    [applyGesture, camera, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
+    [applyGanttEdit, applyGesture, camera, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onPointerUp = useCallback(
@@ -702,6 +781,11 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             ),
           })
         }
+        return
+      }
+
+      if (gesture.mode === 'gantt-edit') {
+        commit(applyGanttEdit(gesture, toScene(event.clientX, event.clientY)))
         return
       }
 
@@ -788,7 +872,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
       commit(next)
     },
-    [applyGesture, commit, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
+    [applyGanttEdit, applyGesture, commit, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onWheel = useCallback(
@@ -1448,6 +1532,17 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
                 pointerEvents="none"
               />
             )}
+
+            {/* Drag affordance: resize grips on each gantt bar's edges. */}
+            {ganttEditGeo &&
+              ganttEditGeo.bars.map((bar) =>
+                bar.milestone ? null : (
+                  <g key={bar.index} pointerEvents="none">
+                    <rect x={bar.x - 1.5 * scenePerPixel} y={bar.y + 3 * scenePerPixel} width={3 * scenePerPixel} height={bar.h - 6 * scenePerPixel} rx={1.5 * scenePerPixel} fill="#fff" stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} />
+                    <rect x={bar.x + bar.w - 1.5 * scenePerPixel} y={bar.y + 3 * scenePerPixel} width={3 * scenePerPixel} height={bar.h - 6 * scenePerPixel} rx={1.5 * scenePerPixel} fill="#fff" stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} />
+                  </g>
+                ),
+              )}
 
             {snapGuides.map((guide, i) =>
               guide.axis === 'x' ? (

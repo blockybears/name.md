@@ -43,6 +43,8 @@ import {
   computeSchedule,
   renderView,
   parseDep,
+  rescheduleGantt,
+  ganttGeometry,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -696,6 +698,28 @@ test('ganttFromRows: duration 0 makes a milestone', () => {
   const data = ganttFromRows([{ name: 'Launch', start: '2024-06-01', duration: '0', deps: '', tags: '' }])
   assert.equal(data.tasks[0].startDay, data.tasks[0].endDay)
   assert.ok(data.tasks[0].tags.includes('milestone'))
+})
+
+test('rescheduleGantt shifts dependents when a task moves', () => {
+  const g = ganttFromRows([
+    { name: 'A', start: '2024-01-01', duration: '3d', deps: '', tags: '' },
+    { name: 'B', start: '', duration: '2d', deps: 'A', tags: '' },
+  ])
+  // Simulate a drag: move A 5 days later (pinned).
+  const moved = { ...g, tasks: g.tasks.map((t) => (t.name === 'A' ? { ...t, startDay: t.startDay + 5, endDay: t.endDay + 5, pinned: true } : t)) }
+  const re = rescheduleGantt(moved)
+  const a = re.tasks[0]
+  const b = re.tasks[1]
+  assert.equal(b.startDay, a.endDay, 'B follows A after the move')
+  assert.equal(b.endDay - b.startDay, 2, 'B duration preserved')
+})
+
+test('ganttGeometry round-trips x ↔ day', () => {
+  const g = ganttFromRows([{ name: 'A', start: '2024-01-01', duration: '4d', deps: '', tags: '' }])
+  const geo = ganttGeometry(g, { x: 10, y: 20 })
+  const day = geo.minDay + 2.5
+  assert.ok(Math.abs(geo.xToDay(geo.dayToX(day)) - day) < 1e-6)
+  assert.equal(geo.bars.length, 1)
 })
 
 test('gantt renders a progress fill for a partly-done task', () => {

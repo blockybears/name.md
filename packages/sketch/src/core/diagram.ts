@@ -417,21 +417,100 @@ export function depConstraintStart(dep: GanttDep, predStart: number, predEnd: nu
 }
 
 const CRITICAL_COLOR = '#e03131'
+const GANTT_ROW_H = 26
+const GANTT_ROW_GAP = 10
+const GANTT_LABEL_W = 150
+
+export interface GanttBarRect {
+  index: number
+  x: number
+  y: number
+  w: number
+  h: number
+  milestone: boolean
+}
+
+export interface GanttGeometry {
+  origin: Point
+  minDay: number
+  maxDay: number
+  dayPx: number
+  labelW: number
+  rowH: number
+  rowGap: number
+  dayToX: (day: number) => number
+  xToDay: (x: number) => number
+  rowY: (i: number) => number
+  bars: GanttBarRect[]
+}
+
+/** Shared gantt layout maths so the rendered view and the interactive drag
+ *  handles agree exactly. */
+export function ganttGeometry(gantt: GanttData, origin: Point): GanttGeometry {
+  const schedule = computeSchedule(gantt)
+  const minDay = gantt.tasks.length ? Math.min(...gantt.tasks.map((t) => t.startDay)) : 0
+  const maxDay = gantt.tasks.length ? Math.max(...schedule.tasks.map((s) => s.lf), ...gantt.tasks.map((t) => t.endDay)) : 1
+  const totalDays = Math.max(1 / 24, maxDay - minDay)
+  const chartW = Math.max(320, Math.min(900, totalDays * 26))
+  const dayPx = chartW / totalDays
+  const dayToX = (day: number) => origin.x + GANTT_LABEL_W + (day - minDay) * dayPx
+  const xToDay = (x: number) => minDay + (x - origin.x - GANTT_LABEL_W) / dayPx
+  const rowY = (i: number) => origin.y + 18 + i * (GANTT_ROW_H + GANTT_ROW_GAP)
+  const bars = gantt.tasks.map((t, i): GanttBarRect => ({
+    index: i,
+    x: dayToX(t.startDay),
+    y: rowY(i),
+    w: Math.max(8, (t.endDay - t.startDay) * dayPx),
+    h: GANTT_ROW_H,
+    milestone: t.tags.includes('milestone'),
+  }))
+  return { origin, minDay, maxDay, dayPx, labelW: GANTT_LABEL_W, rowH: GANTT_ROW_H, rowGap: GANTT_ROW_GAP, dayToX, xToDay, rowY, bars }
+}
+
+/** Re-resolve task start days from pinned dates / dependencies / row order,
+ *  preserving each task's duration. Call after a drag edit so dependents shift. */
+export function rescheduleGantt(gantt: GanttData): GanttData {
+  const startByKey = new Map<string, number>()
+  const endByKey = new Map<string, number>()
+  let prevName: string | null = null
+  const tasks = gantt.tasks.map((task) => {
+    const duration = Math.max(0, task.endDay - task.startDay)
+    let startDay: number
+    if (task.pinned) {
+      startDay = task.startDay
+    } else if (task.deps.length) {
+      startDay = Math.max(0, ...task.deps.map((spec) => {
+        const dep = parseDep(spec)
+        return depConstraintStart(dep, startByKey.get(dep.task) ?? 0, endByKey.get(dep.task) ?? 0, duration)
+      }))
+    } else if (prevName !== null) {
+      startDay = endByKey.get(prevName) ?? 0
+    } else {
+      startDay = 0
+    }
+    const endDay = startDay + duration
+    startByKey.set(task.name, startDay)
+    endByKey.set(task.name, endDay)
+    if (task.id) {
+      startByKey.set(task.id, startDay)
+      endByKey.set(task.id, endDay)
+    }
+    prevName = task.name
+    return { ...task, startDay, endDay }
+  })
+  return { ...gantt, tasks }
+}
 
 export function buildGanttView(gantt: GanttData, origin: Point, style: DrawStyle): SketchElement[] {
   if (gantt.tasks.length === 0) {
     return []
   }
   const schedule = computeSchedule(gantt)
-  const minDay = Math.min(...gantt.tasks.map((task) => task.startDay))
-  const maxDay = Math.max(...schedule.tasks.map((s) => s.lf), ...gantt.tasks.map((task) => task.endDay))
+  const geo = ganttGeometry(gantt, origin)
+  const { minDay, maxDay, dayPx, dayToX, rowY } = geo
   const totalDays = Math.max(1 / 24, maxDay - minDay)
-  const rowH = 26
-  const rowGap = 10
-  const labelW = 150
-  const chartW = Math.max(320, Math.min(900, totalDays * 26))
-  const dayPx = chartW / totalDays
-  const dayToX = (day: number) => origin.x + labelW + (day - minDay) * dayPx
+  const rowH = geo.rowH
+  const rowGap = geo.rowGap
   const elements: SketchElement[] = []
   if (gantt.title) {
     elements.push(textEl(origin.x, origin.y - 28, gantt.title, 17, style))
@@ -447,8 +526,6 @@ export function buildGanttView(gantt: GanttData, origin: Point, style: DrawStyle
     elements.push(lineEl(x, chartTop, x, chartBottom, style, { stroke: token('muted'), strokeStyle: 'dotted' }))
     elements.push(textEl(x - 16, chartTop - 2, withTime ? clockLabel(day) : dayToLabel(day), 11, style, { stroke: token('muted') }))
   }
-
-  const rowY = (i: number) => origin.y + 18 + i * (rowH + rowGap)
 
   // Dependency arrows (predecessor end → successor start), drawn behind bars.
   schedule.tasks.forEach((s, i) => {
