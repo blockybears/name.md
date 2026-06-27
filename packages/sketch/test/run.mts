@@ -41,6 +41,7 @@ import {
   parseGanttStart,
   ganttFromRows,
   computeSchedule,
+  renderView,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -591,12 +592,28 @@ test('mermaid unknown diagram falls back to edge extraction', () => {
   assert.ok(els.filter((e) => e.type !== 'arrow').length >= 2)
 })
 
-test('diagram: gantt data offers gantt + graph + series views', () => {
+test('diagram: gantt data offers gantt + network + graph + series views', () => {
   const { data } = mermaidToData('gantt\n dateFormat YYYY-MM-DD\n A :a1, 2024-01-01, 5d\n B :after a1, 3d')!
   const views = availableViews(data).map((v) => v.id)
   assert.ok(views.includes('gantt'))
+  assert.ok(views.includes('network'), 'gantt → activity-on-node available')
   assert.ok(views.includes('flow-td'), 'gantt → flowchart available')
   assert.ok(views.includes('pie'), 'gantt → pie available')
+})
+
+test('diagram: network view renders a node per task with critical path', () => {
+  const gantt = ganttFromRows([
+    { name: 'A', start: '2024-01-01', duration: '2d', deps: '', tags: '' },
+    { name: 'B', start: '', duration: '5d', deps: 'A', tags: '' },
+    { name: 'C', start: '', duration: '2d', deps: 'A', tags: '' },
+    { name: 'D', start: '', duration: '1d', deps: 'B, C', tags: '' },
+  ])
+  const els = renderView(gantt, 'network', { x: 0, y: 0 }, 'clean')
+  const boxes = els.filter((e) => e.type === 'rectangle')
+  assert.equal(boxes.length, 4, 'one node box per task')
+  // The critical chain A,B,D is red; C is not.
+  const reds = boxes.filter((b) => b.stroke && 'value' in (b.stroke as { value?: string }) && (b.stroke as { value?: string }).value === '#e03131')
+  assert.equal(reds.length, 3, 'three critical node boxes')
 })
 
 test('diagram: graph data does NOT offer pie/gantt (no values/dates)', () => {

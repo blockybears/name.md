@@ -65,6 +65,7 @@ export type ViewId =
   | 'bar'
   | 'gantt'
   | 'timeline'
+  | 'network'
 
 export interface ViewDef {
   id: ViewId
@@ -82,6 +83,7 @@ export const DIAGRAM_VIEWS: ViewDef[] = [
   { id: 'bar', label: 'Bar chart', needs: 'series' },
   { id: 'gantt', label: 'Gantt', needs: 'gantt' },
   { id: 'timeline', label: 'Timeline', needs: 'gantt' },
+  { id: 'network', label: 'Network (critical path)', needs: 'gantt' },
 ]
 
 /** Can `from` data satisfy a view that needs `to`? (the honest compatibility.) */
@@ -418,6 +420,93 @@ function round(value: number): number {
   return Math.round(value * 100) / 100
 }
 
+/** Activity-on-Node / critical-path network: each task is a box showing its
+ *  CPM metrics, dependencies are arrows, and the critical path is red. */
+export function buildNetworkView(gantt: GanttData, origin: Point, style: DrawStyle): SketchElement[] {
+  if (gantt.tasks.length === 0) {
+    return []
+  }
+  const schedule = computeSchedule(gantt)
+  const critical = new Map(schedule.tasks.map((s) => [s.task.name, s.critical]))
+  const nodeId = (task: GanttTask) => task.id ?? task.name
+  const nodes: GraphNode[] = gantt.tasks.map((task) => ({ id: nodeId(task), label: task.name, shape: 'rectangle' }))
+  const byKey = new Map(gantt.tasks.map((task) => [task.name, nodeId(task)]))
+  if (gantt.tasks.some((t) => t.id)) {
+    gantt.tasks.forEach((t) => t.id && byKey.set(t.id, nodeId(t)))
+  }
+  const edges: GraphEdge[] = []
+  gantt.tasks.forEach((task) => {
+    for (const dep of task.deps) {
+      const from = byKey.get(dep)
+      if (from) {
+        edges.push({ from, to: nodeId(task), arrow: true })
+      }
+    }
+  })
+
+  const NODE_W = 168
+  const NODE_H = 78
+  const layout = layeredLayout(nodes, edges, 'LR', { nodeWidth: NODE_W, nodeHeight: NODE_H, gapMain: 90, gapCross: 26 })
+  const elements: SketchElement[] = []
+  if (gantt.title) {
+    elements.push(textEl(origin.x, origin.y - 26, `${gantt.title} — critical path`, 16, style))
+  }
+
+  const day0 = schedule.projectStart
+  const fmt = (day: number) => `+${round(day - day0)}d`
+
+  // Dependency edges first (behind the boxes); critical links are red.
+  edges.forEach((edge) => {
+    const a = layout.get(edge.from)
+    const b = layout.get(edge.to)
+    if (!a || !b) {
+      return
+    }
+    const fromCrit = critical.get(gantt.tasks.find((t) => nodeId(t) === edge.from)?.name ?? '')
+    const toCrit = critical.get(gantt.tasks.find((t) => nodeId(t) === edge.to)?.name ?? '')
+    const isCrit = fromCrit && toCrit
+    const x1 = origin.x + a.x + a.width
+    const y1 = origin.y + a.y + a.height / 2
+    const x2 = origin.x + b.x
+    const y2 = origin.y + b.y + b.height / 2
+    elements.push(
+      createElement(
+        {
+          type: 'arrow',
+          id: generateId('netdep'),
+          x: Math.min(x1, x2),
+          y: Math.min(y1, y2),
+          width: Math.abs(x2 - x1),
+          height: Math.abs(y2 - y1),
+          points: [{ x: x1 - Math.min(x1, x2), y: y1 - Math.min(y1, y2) }, { x: x2 - Math.min(x1, x2), y: y2 - Math.min(y1, y2) }],
+          stroke: isCrit ? literal(CRITICAL_COLOR) : token('muted'),
+          strokeWidth: isCrit ? 2 : 1.5,
+          endArrowhead: 'triangle',
+        },
+        style,
+      ),
+    )
+  })
+
+  schedule.tasks.forEach((s) => {
+    const box = layout.get(nodeId(s.task))
+    if (!box) {
+      return
+    }
+    const x = origin.x + box.x
+    const y = origin.y + box.y
+    const accent = s.critical ? literal(CRITICAL_COLOR) : token('accent')
+    elements.push(createElement({ type: 'rectangle', id: generateId('node'), x, y, width: box.width, height: box.height, stroke: accent, strokeWidth: s.critical ? 2.5 : 1.5, fill: token('surface'), fillStyle: 'solid', roundness: 6 }, style))
+    // Top metrics row: earliest start → finish.
+    elements.push(textEl(x + 8, y + 5, `ES ${fmt(s.es)}   EF ${fmt(s.ef)}`, 10, style, { stroke: token('muted') }))
+    // Name.
+    elements.push(textEl(x + 8, y + box.height / 2 - 9, s.task.name, 13, style, { stroke: accent }))
+    // Bottom row: latest start → finish + float.
+    elements.push(textEl(x + 8, y + box.height - 18, `LS ${fmt(s.ls)}   LF ${fmt(s.lf)}   float ${round(s.float)}d`, 10, style, { stroke: s.critical ? accent : token('muted') }))
+  })
+  return elements
+}
+
 /** Render data as a specific view → editable elements at `origin`. */
 export function renderView(data: DiagramData, view: ViewId, origin: Point, style: DrawStyle): SketchElement[] {
   const resolved = dataForView(data, view)
@@ -429,6 +518,9 @@ export function renderView(data: DiagramData, view: ViewId, origin: Point, style
   }
   if (view === 'timeline') {
     return buildTimelineView(resolved, origin, style)
+  }
+  if (view === 'network') {
+    return buildNetworkView(resolved, origin, style)
   }
   return buildGanttView(resolved, origin, style)
 }
