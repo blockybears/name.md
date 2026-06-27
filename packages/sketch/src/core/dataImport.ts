@@ -243,7 +243,7 @@ export function ganttFromRows(rows: GanttRow[], title?: string): GanttData {
       startDay = 0
     }
     const endDay = startDay + duration
-    const task: GanttTask = { name, startDay, endDay, deps, section: row.section?.trim() || undefined, tags: milestone && !tags.includes('milestone') ? [...tags, 'milestone'] : tags }
+    const task: GanttTask = { name, startDay, endDay, deps, section: row.section?.trim() || undefined, tags: milestone && !tags.includes('milestone') ? [...tags, 'milestone'] : tags, pinned: explicit !== null }
     tasks.push(task)
     endByKey.set(name, endDay)
     if (row.id?.trim()) {

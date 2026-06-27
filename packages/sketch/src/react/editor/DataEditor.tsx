@@ -38,7 +38,9 @@ function ganttToRows(data: GanttData): GanttRow[] {
     const isImplicit = prevName !== null && task.deps.length === 1 && task.deps[0] === prevName
     return {
       name: task.name,
-      start: dayToDateTime(task.startDay),
+      // Only show a start for user-pinned dates; derived starts stay blank so
+      // the succession chain survives the round-trip.
+      start: task.pinned ? dayToDateTime(task.startDay) : '',
       duration: task.tags.includes('milestone') ? '0' : daysToDurationStr(task.endDay - task.startDay),
       deps: isImplicit ? '' : task.deps.join(', '),
       tags: task.tags.filter((t) => t !== 'milestone').join(', '),

@@ -1,3 +1,4 @@
+import { computeSchedule } from './cpm'
 import { graphToElements, layeredLayout, type GraphEdge, type GraphNode, type LayoutDirection } from './graphLayout'
 import { createElement, generateId, generateSeed } from './scene'
 import { literal, token, type DrawStyle, type Point, type Scene, type SketchElement } from './types'
@@ -30,6 +31,9 @@ export interface GanttTask {
   deps: string[]
   section?: string
   tags: string[]
+  /** True when the start was an explicit user date (vs. derived from deps/order).
+   *  Derived starts stay blank on round-trip so succession links survive. */
+  pinned?: boolean
 }
 export interface GanttData {
   kind: 'gantt'
@@ -269,6 +273,11 @@ function dayToLabel(day: number): string {
   return `${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 }
 
+function clockLabel(day: number): string {
+  const date = new Date(Math.round(day * 86400000))
+  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`
+}
+
 /** Epoch-day number ⇄ ISO date (YYYY-MM-DD), used by the data editor. */
 export function isoToDay(iso: string): number | null {
   const m = iso.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
@@ -283,17 +292,20 @@ export function dayToISO(day: number): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 }
 
+const CRITICAL_COLOR = '#e03131'
+
 export function buildGanttView(gantt: GanttData, origin: Point, style: DrawStyle): SketchElement[] {
   if (gantt.tasks.length === 0) {
     return []
   }
+  const schedule = computeSchedule(gantt)
   const minDay = Math.min(...gantt.tasks.map((task) => task.startDay))
-  const maxDay = Math.max(...gantt.tasks.map((task) => task.endDay))
-  const totalDays = Math.max(1, maxDay - minDay)
-  const rowH = 28
-  const rowGap = 8
+  const maxDay = Math.max(...schedule.tasks.map((s) => s.lf), ...gantt.tasks.map((task) => task.endDay))
+  const totalDays = Math.max(1 / 24, maxDay - minDay)
+  const rowH = 26
+  const rowGap = 10
   const labelW = 150
-  const chartW = Math.max(300, Math.min(900, totalDays * 26))
+  const chartW = Math.max(320, Math.min(900, totalDays * 26))
   const dayPx = chartW / totalDays
   const dayToX = (day: number) => origin.x + labelW + (day - minDay) * dayPx
   const elements: SketchElement[] = []
@@ -302,28 +314,78 @@ export function buildGanttView(gantt: GanttData, origin: Point, style: DrawStyle
   }
   const chartTop = origin.y
   const chartBottom = origin.y + gantt.tasks.length * (rowH + rowGap) + 20
-  const tickStep = totalDays > 21 ? 7 : totalDays > 7 ? 2 : 1
-  for (let day = minDay; day <= maxDay; day += tickStep) {
+
+  // Time-aware axis: hours when the whole plan is under ~2 days, else dates.
+  const withTime = totalDays <= 2
+  const tickStep = withTime ? (totalDays <= 0.5 ? 1 / 24 : 4 / 24) : totalDays > 21 ? 7 : totalDays > 7 ? 2 : 1
+  for (let day = Math.ceil(minDay / tickStep) * tickStep; day <= maxDay + 1e-6; day += tickStep) {
     const x = dayToX(day)
     elements.push(lineEl(x, chartTop, x, chartBottom, style, { stroke: token('muted'), strokeStyle: 'dotted' }))
-    elements.push(textEl(x - 14, chartTop - 2, dayToLabel(day), 11, style, { stroke: token('muted') }))
+    elements.push(textEl(x - 16, chartTop - 2, withTime ? clockLabel(day) : dayToLabel(day), 11, style, { stroke: token('muted') }))
   }
+
+  const rowY = (i: number) => origin.y + 18 + i * (rowH + rowGap)
+
+  // Dependency arrows (predecessor end → successor start), drawn behind bars.
+  schedule.tasks.forEach((s, i) => {
+    const startX = dayToX(s.task.startDay)
+    s.task.deps.forEach((dep) => {
+      const pi = gantt.tasks.findIndex((t) => t.name === dep || t.id === dep)
+      if (pi < 0) {
+        return
+      }
+      const fromX = dayToX(gantt.tasks[pi].endDay)
+      const fromY = rowY(pi) + rowH / 2
+      const toY = rowY(i) + rowH / 2
+      const critical = s.critical && schedule.tasks[pi].critical
+      elements.push(
+        createElement(
+          {
+            type: 'arrow',
+            id: generateId('dep'),
+            x: Math.min(fromX, startX),
+            y: Math.min(fromY, toY),
+            width: Math.abs(startX - fromX),
+            height: Math.abs(toY - fromY),
+            points: [{ x: fromX - Math.min(fromX, startX), y: fromY - Math.min(fromY, toY) }, { x: startX - Math.min(fromX, startX), y: toY - Math.min(fromY, toY) }],
+            stroke: critical ? literal(CRITICAL_COLOR) : token('muted'),
+            strokeWidth: 1.5,
+            endArrowhead: 'triangle',
+          },
+          style,
+        ),
+      )
+    })
+  })
+
   let lastSection = ''
-  gantt.tasks.forEach((task, i) => {
-    const y = origin.y + 18 + i * (rowH + rowGap)
+  schedule.tasks.forEach((s, i) => {
+    const task = s.task
+    const y = rowY(i)
     if (task.section && task.section !== lastSection) {
       elements.push(textEl(origin.x, y - 2, task.section, 12, style, { stroke: token('muted') }))
       lastSection = task.section
     }
     elements.push(textEl(origin.x, y + 6, task.name, 13, style))
     const x = dayToX(task.startDay)
-    const w = Math.max(8, (task.endDay - task.startDay) * dayPx)
+
     if (task.tags.includes('milestone')) {
-      elements.push(createElement({ type: 'diamond', id: generateId('ms'), x: x - rowH / 2, y, width: rowH, height: rowH, fill: token('accent'), fillStyle: 'solid', stroke: token('accent') }, style))
-    } else {
-      const fill = task.tags.includes('crit') ? literal('#e03131') : task.tags.includes('done') ? token('muted') : token('accent')
-      elements.push(createElement({ type: 'rectangle', id: generateId('bar'), x, y, width: w, height: rowH, fill, fillStyle: 'solid', stroke: fill, roundness: 5, opacity: task.tags.includes('done') ? 0.6 : 1 }, style))
+      const fill = s.critical ? literal(CRITICAL_COLOR) : token('accent')
+      elements.push(createElement({ type: 'diamond', id: generateId('ms'), x: x - rowH / 2, y, width: rowH, height: rowH, fill, fillStyle: 'solid', stroke: fill }, style))
+      return
     }
+
+    // Float (slack): a translucent extension from the bar end to its latest finish.
+    if (s.float > 1e-3 && !task.tags.includes('done')) {
+      const fx = dayToX(task.endDay)
+      const fw = Math.max(4, s.float * dayPx)
+      elements.push(createElement({ type: 'rectangle', id: generateId('float'), x: fx, y: y + rowH / 4, width: fw, height: rowH / 2, fill: token('muted'), fillStyle: 'hachure', stroke: token('muted'), strokeStyle: 'dashed', roundness: 3, opacity: 0.7 }, style))
+    }
+
+    const critical = s.critical || task.tags.includes('crit')
+    const fill = critical ? literal(CRITICAL_COLOR) : task.tags.includes('done') ? token('muted') : token('accent')
+    const w = Math.max(8, (task.endDay - task.startDay) * dayPx)
+    elements.push(createElement({ type: 'rectangle', id: generateId('bar'), x, y, width: w, height: rowH, fill, fillStyle: 'solid', stroke: fill, roundness: 5, opacity: task.tags.includes('done') ? 0.55 : 1 }, style))
   })
   return elements
 }

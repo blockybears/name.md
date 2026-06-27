@@ -775,7 +775,7 @@ export function ganttData(code: string): GanttData {
   const tasks: GanttTask[] = raws.map((raw) => {
     const { start, end } = resolve(raw)
     const dep = raw.afterId ? byId.get(raw.afterId)?.label : undefined
-    return { id: raw.id, name: raw.label, startDay: start, endDay: end, deps: dep ? [dep] : [], section: raw.section || undefined, tags: raw.tags }
+    return { id: raw.id, name: raw.label, startDay: start, endDay: end, deps: dep ? [dep] : [], section: raw.section || undefined, tags: raw.tags, pinned: raw.startDay !== null }
   })
   return { kind: 'gantt', title: title || undefined, tasks }
 }

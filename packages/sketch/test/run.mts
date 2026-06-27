@@ -40,6 +40,7 @@ import {
   parseGanttDuration,
   parseGanttStart,
   ganttFromRows,
+  computeSchedule,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -501,7 +502,8 @@ test('mermaid gantt scales bars by real dates + after deps + milestone', () => {
     ' Launch :milestone, m1, 2024-01-20, 0d',
   ].join('\n')
   const els = mermaidToElements(code, { x: 0, y: 0 }, 'clean')
-  const bars = els.filter((e) => e.type === 'rectangle')
+  // Solid task bars are accent/critical; float bars are hachure (distinguish).
+  const bars = els.filter((e) => e.type === 'rectangle' && e.fillStyle === 'solid')
   const milestones = els.filter((e) => e.type === 'diamond')
   assert.equal(bars.length, 2, 'two task bars')
   assert.equal(milestones.length, 1, 'milestone diamond')
@@ -676,6 +678,22 @@ test('ganttFromRows: duration 0 makes a milestone', () => {
   const data = ganttFromRows([{ name: 'Launch', start: '2024-06-01', duration: '0', deps: '', tags: '' }])
   assert.equal(data.tasks[0].startDay, data.tasks[0].endDay)
   assert.ok(data.tasks[0].tags.includes('milestone'))
+})
+
+test('computeSchedule finds the critical path and float on a parallel branch', () => {
+  // A → (B 5d critical) and A → (C 2d, has float) → D ; D after B and C.
+  const gantt = ganttFromRows([
+    { name: 'A', start: '2024-01-01', duration: '2d', deps: '', tags: '' },
+    { name: 'B', start: '', duration: '5d', deps: 'A', tags: '' },
+    { name: 'C', start: '', duration: '2d', deps: 'A', tags: '' },
+    { name: 'D', start: '', duration: '1d', deps: 'B, C', tags: '' },
+  ])
+  const sched = computeSchedule(gantt)
+  const by = (n: string) => sched.tasks.find((s) => s.task.name === n)!
+  assert.ok(sched.hasDependencies)
+  assert.ok(by('A').critical && by('B').critical && by('D').critical, 'A,B,D are critical')
+  assert.ok(!by('C').critical, 'C is not critical')
+  assert.ok(by('C').float > 2.9 && by('C').float < 3.1, 'C has ~3d float (B is 5d vs C 2d)')
 })
 
 test('csvToGantt chains blank starts and scales durations', () => {

@@ -123,6 +123,7 @@ function coerceDiagramData(value: unknown): DiagramData | null {
           deps: Array.isArray(t.deps) ? (t.deps.filter((x) => typeof x === 'string') as string[]) : [],
           section: typeof t.section === 'string' ? t.section : undefined,
           tags: Array.isArray(t.tags) ? (t.tags.filter((x) => typeof x === 'string') as string[]) : [],
+          pinned: t.pinned === true ? true : undefined,
         })),
     }
   }
