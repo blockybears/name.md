@@ -66,9 +66,12 @@
   background: var(--sketch-hover, rgba(127, 127, 127, 0.14));
 }
 
+/* Selected state: a soft accent tint with an accent-coloured icon, so the icon
+ *  stays readable (a solid fill would hide it) while selection is still clear. */
 .sketch-topbar button[aria-pressed='true'] {
-  background: var(--sketch-accent, #2563eb);
-  color: #fff;
+  background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
+  border-color: var(--sketch-accent, #2563eb);
+  color: var(--sketch-accent, #2563eb);
 }
 
 .sketch-topbar button:disabled {
@@ -780,9 +783,10 @@
 }
 
 .sketch-segmented button[aria-pressed='true'] {
-  background: var(--sketch-accent, #2563eb);
+  background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
   border-color: var(--sketch-accent, #2563eb);
-  color: #fff;
+  color: var(--sketch-accent, #2563eb);
+  font-weight: 600;
 }
 
 .sketch-segmented button {
