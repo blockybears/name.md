@@ -162,7 +162,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [importState, setImportState] = useState<{ type: 'mermaid' | 'json'; text: string; error: string | null } | null>(null)
   const pointersRef = useRef<Map<number, Point>>(new Map())
   const pinchRef = useRef<{ dist: number; mid: Point; camera: Camera } | null>(null)
-  const [editingText, setEditingText] = useState<{ id: string; value: string; isLabel: boolean } | null>(null)
+  const [editingText, setEditingText] = useState<{ id: string; value: string; isLabel: boolean; draft?: { x: number; y: number } } | null>(null)
+  const textEditorRef = useRef<HTMLTextAreaElement>(null)
   const gestureRef = useRef<Gesture>({ mode: 'none' })
 
   const [draw, setDraw] = useState<DrawState>(() => defaultDrawState(initialScene.defaultStyle))
@@ -475,11 +476,15 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
 
       if (tool === 'text') {
-        const id = generateId('text')
-        const element = createElement({ type: 'text', id, x: point.x, y: point.y, width: 20, height: draw.fontSize * 1.25, text: '', fontSize: draw.fontSize, stroke: draw.stroke, opacity: draw.opacity, style: draw.style }, draw.style)
-        setScene((current) => ({ ...current, elements: [...current.elements, element] }))
-        setSelected([id])
-        setEditingText({ id, value: '', isLabel: false })
+        // Don't create the element yet — open a draft editor at the click and
+        // only materialise it on commit, so an empty/blurred edit leaves nothing.
+        // preventDefault stops this click from stealing focus back off the
+        // freshly-mounted text editor (which would blur+cancel it).
+        event.preventDefault()
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }
+        setEditingText({ id: generateId('text'), value: '', isLabel: false, draft: { x: point.x, y: point.y } })
         setTool('select')
         return
       }
@@ -1011,12 +1016,45 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     contextElement != null &&
     (hasVertices(contextElement) || contextElement.type === 'rectangle' || contextElement.type === 'diamond')
 
+  // Focus the text editor after the creating click settles (a timeout, not
+  // autoFocus, so the click that opened it can't immediately blur it).
+  useEffect(() => {
+    if (!editingText) {
+      return
+    }
+    const t = setTimeout(() => {
+      const el = textEditorRef.current
+      if (el) {
+        el.focus()
+        el.select()
+      }
+    }, 30)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingText?.id])
+
   const commitEditingText = useCallback(() => {
     if (!editingText) {
       return
     }
-    const { id, value, isLabel } = editingText
+    const { id, value, isLabel, draft } = editingText
     setEditingText(null)
+
+    // Draft text element (from the Text tool): create only if non-empty.
+    if (draft) {
+      if (!value.trim()) {
+        return
+      }
+      const size = measureText(value, draw.fontSize)
+      const element = createElement(
+        { type: 'text', id, x: draft.x, y: draft.y, width: size.width, height: size.height, text: value, fontSize: draw.fontSize, align: 'left', ...newElementStyle },
+        draw.style,
+      )
+      commit({ ...scene, elements: [...scene.elements, element] })
+      setSelected([id])
+      return
+    }
+
     const element = scene.elements.find((el) => el.id === id)
     if (!element) {
       return
@@ -1035,7 +1073,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       ...scene,
       elements: scene.elements.map((el) => (el.id === id && el.type === 'text' ? { ...el, text: value, width: size.width, height: size.height } : el)),
     })
-  }, [commit, draw.fontSize, editingText, scene])
+  }, [commit, draw.fontSize, draw.style, editingText, newElementStyle, scene])
 
   // --- toolbar / panel actions ---
   const deleteSelected = useCallback(() => {
@@ -1400,7 +1438,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   // editing-text overlay position (pixels relative to canvas wrap)
   const editingElement = editingText ? scene.elements.find((el) => el.id === editingText.id) : null
   const editorBox = useMemo(() => {
-    if (!editingText || !editingElement) {
+    if (!editingText) {
+      return null
+    }
+    if (editingText.draft) {
+      const fontPx = draw.fontSize * camera.zoom
+      return { left: (editingText.draft.x - camera.x) * camera.zoom, top: (editingText.draft.y - camera.y) * camera.zoom, width: 220, fontPx, height: fontPx * 1.4 }
+    }
+    if (!editingElement) {
       return null
     }
     const fontPx = (editingText.isLabel ? editingElement.labelFontSize ?? 16 : editingElement.type === 'text' ? editingElement.fontSize : draw.fontSize) * camera.zoom
@@ -1591,13 +1636,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
 
           {editorBox && editingText && (
             <textarea
+              ref={textEditorRef}
               className="sketch-text-editor"
-              autoFocus
               value={editingText.value}
               spellCheck={false}
               style={{ left: editorBox.left, top: editorBox.top, width: editorBox.width, minHeight: editorBox.height, fontSize: editorBox.fontPx, textAlign: editingText.isLabel ? 'center' : 'left' }}
               onChange={(event) => setEditingText({ ...editingText, value: event.target.value })}
               onBlur={commitEditingText}
+              onPointerDown={(event) => event.stopPropagation()}
               onKeyDown={(event) => {
                 if (event.key === 'Escape' || (event.key === 'Enter' && !event.shiftKey)) {
                   event.preventDefault()
