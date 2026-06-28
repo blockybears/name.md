@@ -1,4 +1,4 @@
-import type { Arrowhead, DrawStyle, FillStyle, SketchColor, StrokeStyle } from '../../core'
+import type { Arrowhead, DrawStyle, FillStyle, FontFamily, LabelPlacement, SketchColor, StrokeStyle, TextOrientation } from '../../core'
 
 export type ToolId =
   | 'select'
@@ -25,6 +25,13 @@ export interface DrawState {
   startArrowhead: Arrowhead
   endArrowhead: Arrowhead
   fontSize: number
+  fontFamily: FontFamily
+  fontBold: boolean
+  fontItalic: boolean
+  textColor: SketchColor
+  wipeout: boolean
+  textOrientation: TextOrientation
+  labelPlacement: LabelPlacement
 }
 
 export const defaultDrawState = (style: DrawStyle): DrawState => ({
@@ -40,4 +47,11 @@ export const defaultDrawState = (style: DrawStyle): DrawState => ({
   startArrowhead: 'none',
   endArrowhead: 'arrow',
   fontSize: 20,
+  fontFamily: 'rounded',
+  fontBold: false,
+  fontItalic: false,
+  textColor: { kind: 'token', token: 'foreground' },
+  wipeout: false,
+  textOrientation: 'shape',
+  labelPlacement: 'on',
 })

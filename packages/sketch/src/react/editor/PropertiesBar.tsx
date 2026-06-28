@@ -1,4 +1,4 @@
-import type { Arrowhead, FillStyle, StrokeStyle } from '../../core'
+import type { Arrowhead, FillStyle, FontFamily, LabelPlacement, StrokeStyle, TextOrientation } from '../../core'
 import { ColorSwatches } from './ColorControl'
 import { colorPreview, isTransparent } from './colorUtils'
 import { Icon } from './Icon'
@@ -15,6 +15,8 @@ export interface PropertiesBarProps {
   showEdges: boolean
   showArrowheads: boolean
   showText: boolean
+  /** Show the line-label placement control (above / on / below). */
+  showLinePlacement: boolean
   onChange: (patch: Partial<DrawState>) => void
   onAction: (action: LayerAction) => void
 }
@@ -55,13 +57,27 @@ const fontSizeOptions: SegOption<number>[] = [
   { value: 28, label: 'L', title: 'Large' },
   { value: 40, label: 'XL', title: 'Extra large' },
 ]
+const fontFamilyOptions: SegOption<FontFamily>[] = [
+  { value: 'rounded', label: 'Aa', title: 'Rounded' },
+  { value: 'hand', label: 'Aa', title: 'Handwritten' },
+  { value: 'mono', label: 'Aa', title: 'Monospace' },
+]
+const orientationOptions: SegOption<TextOrientation>[] = [
+  { value: 'horizontal', label: 'Level', title: 'Keep text horizontal' },
+  { value: 'shape', label: 'Shape', title: 'Align text with the shape' },
+]
+const placementOptions: SegOption<LabelPlacement>[] = [
+  { value: 'above', label: 'Above', title: 'Above the line' },
+  { value: 'on', label: 'On', title: 'On the line' },
+  { value: 'below', label: 'Below', title: 'Below the line' },
+]
 
 /**
  * Compact properties bar: a row of icon buttons that each open a small popover
  * (like the name.md toolbar dropdowns). Usable on mobile — it scrolls
  * horizontally and the menus expand upward.
  */
-export function PropertiesBar({ draw, hasSelection, showFill, showEdges, showArrowheads, showText, onChange, onAction }: PropertiesBarProps) {
+export function PropertiesBar({ draw, hasSelection, showFill, showEdges, showArrowheads, showText, showLinePlacement, onChange, onAction }: PropertiesBarProps) {
   return (
     <div className="sketch-prop-bar" role="toolbar" aria-label="Drawing properties">
       {/* Stroke: a pencil whose underline shows the current stroke colour. */}
@@ -116,8 +132,41 @@ export function PropertiesBar({ draw, hasSelection, showFill, showEdges, showArr
       )}
 
       {showText && (
-        <PropMenu title="Font size" trigger={<Icon name="text" />}>
-          <Segmented options={fontSizeOptions} value={draw.fontSize} onSelect={(fontSize) => onChange({ fontSize })} />
+        <PropMenu title="Text" trigger={<span className="sketch-bar-tool"><Icon name="text" /><span className="sketch-bar-underline" style={{ background: colorPreview(draw.textColor) }} /></span>}>
+          <PropMenuRow label="Size">
+            <Segmented options={fontSizeOptions} value={draw.fontSize} onSelect={(fontSize) => onChange({ fontSize })} />
+          </PropMenuRow>
+          <PropMenuRow label="Font">
+            <Segmented options={fontFamilyOptions} value={draw.fontFamily} onSelect={(fontFamily) => onChange({ fontFamily })} />
+          </PropMenuRow>
+          <PropMenuRow label="Weight">
+            <div className="sketch-segmented">
+              <button type="button" aria-label="Bold" aria-pressed={draw.fontBold} title="Bold" onClick={() => onChange({ fontBold: !draw.fontBold })} style={{ fontWeight: 700 }}>
+                B
+              </button>
+              <button type="button" aria-label="Italic" aria-pressed={draw.fontItalic} title="Italic" onClick={() => onChange({ fontItalic: !draw.fontItalic })} style={{ fontStyle: 'italic' }}>
+                I
+              </button>
+            </div>
+          </PropMenuRow>
+          <PropMenuRow label="Colour">
+            <ColorSwatches value={draw.textColor} onChange={(textColor) => onChange({ textColor })} />
+          </PropMenuRow>
+          <PropMenuRow label="Wipeout">
+            <div className="sketch-segmented">
+              <button type="button" aria-label="Wipeout background" aria-pressed={draw.wipeout} title="Knock out the background behind the text" onClick={() => onChange({ wipeout: !draw.wipeout })}>
+                {draw.wipeout ? 'On' : 'Off'}
+              </button>
+            </div>
+          </PropMenuRow>
+          <PropMenuRow label="Orientation">
+            <Segmented options={orientationOptions} value={draw.textOrientation} onSelect={(textOrientation) => onChange({ textOrientation })} />
+          </PropMenuRow>
+          {showLinePlacement && (
+            <PropMenuRow label="On line">
+              <Segmented options={placementOptions} value={draw.labelPlacement} onSelect={(labelPlacement) => onChange({ labelPlacement })} />
+            </PropMenuRow>
+          )}
         </PropMenu>
       )}
 

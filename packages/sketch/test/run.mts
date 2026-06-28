@@ -701,6 +701,30 @@ test('ganttFromRows: duration 0 makes a milestone', () => {
   assert.ok(data.tasks[0].tags.includes('milestone'))
 })
 
+test('text style: font family, bold, italic, colour and wipeout render', () => {
+  const scene = createScene({
+    elements: [
+      createElement({ type: 'text', x: 0, y: 0, width: 120, height: 30, text: 'Hi', fontSize: 20, fontFamily: 'mono', fontBold: true, fontItalic: true, textColor: literal('#e11d48'), wipeout: true, style: 'clean', id: 't' }),
+    ],
+  })
+  const svg = sceneToSvgString(scene)
+  assert.ok(/font-family="[^"]*monospace[^"]*"/.test(svg), 'mono font stack')
+  assert.ok(svg.includes('font-weight="700"'), 'bold')
+  assert.ok(svg.includes('font-style="italic"'), 'italic')
+  assert.ok(svg.includes('fill="#e11d48"'), 'text colour')
+  assert.ok((svg.match(/<path/g) ?? []).length >= 1, 'wipeout backdrop path present')
+})
+
+test('label colour is independent of the shape stroke', () => {
+  const scene = createScene({
+    elements: [createElement({ type: 'rectangle', x: 0, y: 0, width: 80, height: 40, stroke: literal('#ff0000'), label: 'Box', style: 'clean', id: 'r' })],
+  })
+  const svg = sceneToSvgString(scene)
+  // The label text should NOT take the red stroke colour by default.
+  assert.ok(svg.includes('>Box</text>'))
+  assert.ok(!/fill="#ff0000"[^>]*>Box/.test(svg), 'label does not inherit stroke red')
+})
+
 test('freedraw renders as a smooth bezier path (not straight segments)', () => {
   const pts = Array.from({ length: 8 }, (_, i) => ({ x: i * 10, y: i % 2 ? 20 : 0 }))
   const scene = createScene({ elements: [createElement({ type: 'freedraw', x: 0, y: 0, width: 70, height: 20, points: pts, style: 'clean', id: 'f' })] })

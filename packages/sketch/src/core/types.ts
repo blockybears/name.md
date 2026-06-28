@@ -26,6 +26,12 @@ export type DrawStyle = 'clean' | 'soft' | 'sketchy'
 export type FillStyle = 'none' | 'solid' | 'hachure'
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted'
 export type TextAlign = 'left' | 'center' | 'right'
+/** Text typefaces: a rounded UI sans, a casual handwritten face, and monospace. */
+export type FontFamily = 'rounded' | 'hand' | 'mono'
+/** Whether text keeps level or rotates with its (rotated) element. */
+export type TextOrientation = 'shape' | 'horizontal'
+/** Where a line/arrow label sits relative to the line. */
+export type LabelPlacement = 'above' | 'on' | 'below'
 export type Arrowhead = 'none' | 'arrow' | 'triangle' | 'dot'
 export type ElementType = 'rectangle' | 'ellipse' | 'diamond' | 'polygon' | 'line' | 'arrow' | 'freedraw' | 'text'
 
@@ -61,6 +67,19 @@ export interface ElementBase {
   /** Optional centered label drawn inside container shapes (diagram nodes). */
   label?: string
   labelFontSize?: number
+  // --- text styling (applies to a text element's text and to any label) ---
+  /** Typeface; defaults to 'rounded'. */
+  fontFamily?: FontFamily
+  fontBold?: boolean
+  fontItalic?: boolean
+  /** Text/label colour, independent of the shape's stroke. */
+  textColor?: SketchColor
+  /** Knock out a same-coloured background behind the text so it stays legible. */
+  wipeout?: boolean
+  /** Keep text level or let it rotate with the element. Default 'shape'. */
+  textOrientation?: TextOrientation
+  /** For line/arrow labels: sit above, on, or below the line. Default 'on'. */
+  labelPlacement?: LabelPlacement
 }
 
 export interface RectElement extends ElementBase {
@@ -99,7 +118,6 @@ export interface TextElement extends ElementBase {
   type: 'text'
   text: string
   fontSize: number
-  fontFamily: string
   align: TextAlign
 }
 

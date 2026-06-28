@@ -17,6 +17,7 @@ export function RenderedScene({ elements }: { elements: RenderElement[] }) {
                 fill={shape.fill}
                 strokeDasharray={shape.dash}
                 opacity={shape.opacity}
+                transform={shape.rotate ? `rotate(${shape.rotate.deg} ${shape.rotate.cx} ${shape.rotate.cy})` : undefined}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -27,10 +28,13 @@ export function RenderedScene({ elements }: { elements: RenderElement[] }) {
                 y={shape.y}
                 fontSize={shape.fontSize}
                 fontFamily={shape.fontFamily}
+                fontWeight={shape.fontWeight}
+                fontStyle={shape.fontStyle}
                 textAnchor={shape.anchor}
                 dominantBaseline={shape.baseline === 'middle' ? 'central' : undefined}
                 fill={shape.fill}
                 opacity={shape.opacity}
+                transform={shape.rotate ? `rotate(${shape.rotate.deg} ${shape.rotate.cx} ${shape.rotate.cy})` : undefined}
               >
                 {shape.text}
               </text>

@@ -8,6 +8,7 @@ import type {
   DrawStyle,
   ElementType,
   FillStyle,
+  FontFamily,
   Point,
   Rect,
   Scene,
@@ -136,6 +137,7 @@ const fillStyles: FillStyle[] = ['none', 'solid', 'hachure']
 const strokeStyles: StrokeStyle[] = ['solid', 'dashed', 'dotted']
 const arrowheads: Arrowhead[] = ['none', 'arrow', 'triangle', 'dot']
 const aligns: TextAlign[] = ['left', 'center', 'right']
+const fontFamilies: FontFamily[] = ['rounded', 'hand', 'mono']
 
 function coerceBinding(value: unknown): { elementId: string; focus: number; gap: number } | undefined {
   if (!value || typeof value !== 'object') {
@@ -236,6 +238,13 @@ function coerceElement(value: unknown): SketchElement | null {
     groupIds: Array.isArray(data.groupIds) ? (data.groupIds.filter((id) => typeof id === 'string') as string[]) : [],
     ...(typeof data.label === 'string' ? { label: data.label } : {}),
     ...(typeof data.labelFontSize === 'number' ? { labelFontSize: data.labelFontSize } : {}),
+    ...(fontFamilies.includes(data.fontFamily as FontFamily) ? { fontFamily: data.fontFamily as FontFamily } : {}),
+    ...(data.fontBold === true ? { fontBold: true } : {}),
+    ...(data.fontItalic === true ? { fontItalic: true } : {}),
+    ...(coerceColor(data.textColor) ? { textColor: coerceColor(data.textColor) } : {}),
+    ...(data.wipeout === true ? { wipeout: true } : {}),
+    ...(data.textOrientation === 'horizontal' ? { textOrientation: 'horizontal' as const } : {}),
+    ...(['above', 'on', 'below'].includes(data.labelPlacement as string) ? { labelPlacement: data.labelPlacement as 'above' | 'on' | 'below' } : {}),
   }
 
   if (type === 'arrow') {
@@ -256,7 +265,6 @@ function coerceElement(value: unknown): SketchElement | null {
       ...base,
       text: str(data.text, ''),
       fontSize: num(data.fontSize, 20),
-      fontFamily: str(data.fontFamily, 'inherit'),
       align: aligns.includes(data.align as TextAlign) ? (data.align as TextAlign) : 'left',
     } as unknown as SketchElement
   }

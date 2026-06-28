@@ -24,6 +24,7 @@ import {
   defaultViewFor,
   diagramIdOfElement,
   flattenDiagram,
+  fontStack,
   ganttGeometry,
   rescheduleGantt,
   sceneElements,
@@ -61,6 +62,7 @@ import {
   serializeScene,
   toPolygon,
   recomputeBindings,
+  resolveColor,
   rectToViewBox,
   RESIZE_HANDLES,
   renderScene,
@@ -269,7 +271,11 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       : ['rectangle', 'ellipse', 'diamond'].includes(tool)
   const edgesActive = selectedElements.length > 0 ? selTypes.has('rectangle') : tool === 'rectangle'
   const arrowActive = selectedElements.length > 0 ? selTypes.has('arrow') : tool === 'arrow'
-  const textActive = selectedElements.length > 0 ? selTypes.has('text') : tool === 'text'
+  // The text menu applies to text elements and to any label-bearing shape/line.
+  const labelBearing = (t: string) => ['text', 'rectangle', 'ellipse', 'diamond', 'polygon', 'line', 'arrow'].includes(t)
+  const textActive =
+    selectedElements.length > 0 ? selectedElements.some((el) => labelBearing(el.type)) : tool === 'text' || labelBearing(tool)
+  const linePlacementActive = selectedElements.length > 0 ? selTypes.has('line') || selTypes.has('arrow') : tool === 'line' || tool === 'arrow'
 
   // --- gesture application (pure) ---
   const applyGesture = useCallback((gesture: Gesture, point: Point): Scene | null => {
@@ -405,7 +411,20 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   }, [])
 
   const newElementStyle = useMemo(
-    () => ({ stroke: draw.stroke, fill: draw.fill, fillStyle: draw.fillStyle, strokeWidth: draw.strokeWidth, strokeStyle: draw.strokeStyle, opacity: draw.opacity, fillOpacity: draw.fillOpacity, roundness: draw.roundness }),
+    () => ({
+      stroke: draw.stroke,
+      fill: draw.fill,
+      fillStyle: draw.fillStyle,
+      strokeWidth: draw.strokeWidth,
+      strokeStyle: draw.strokeStyle,
+      opacity: draw.opacity,
+      fillOpacity: draw.fillOpacity,
+      roundness: draw.roundness,
+      fontFamily: draw.fontFamily,
+      fontBold: draw.fontBold,
+      fontItalic: draw.fontItalic,
+      textColor: draw.textColor,
+    }),
     [draw],
   )
 
@@ -1437,6 +1456,17 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
 
   // editing-text overlay position (pixels relative to canvas wrap)
   const editingElement = editingText ? scene.elements.find((el) => el.id === editingText.id) : null
+  // WYSIWYG font for the inline editor (from the element being edited, or the
+  // current text defaults for a fresh draft).
+  const editorFont = useMemo(() => {
+    const src = editingElement ?? draw
+    return {
+      fontFamily: fontStack(src.fontFamily),
+      fontWeight: src.fontBold ? 700 : 400,
+      fontStyle: src.fontItalic ? 'italic' : 'normal',
+      color: resolveColor(src.textColor ?? (editingText?.isLabel ? { kind: 'token', token: 'foreground' } : draw.textColor)),
+    }
+  }, [draw, editingElement, editingText?.isLabel])
   const editorBox = useMemo(() => {
     if (!editingText) {
       return null
@@ -1640,7 +1670,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               className="sketch-text-editor"
               value={editingText.value}
               spellCheck={false}
-              style={{ left: editorBox.left, top: editorBox.top, width: editorBox.width, minHeight: editorBox.height, fontSize: editorBox.fontPx, textAlign: editingText.isLabel ? 'center' : 'left' }}
+              style={{ left: editorBox.left, top: editorBox.top, width: editorBox.width, minHeight: editorBox.height, fontSize: editorBox.fontPx, textAlign: editingText.isLabel ? 'center' : 'left', fontFamily: editorFont.fontFamily, fontWeight: editorFont.fontWeight, fontStyle: editorFont.fontStyle, color: editorFont.color }}
               onChange={(event) => setEditingText({ ...editingText, value: event.target.value })}
               onBlur={commitEditingText}
               onPointerDown={(event) => event.stopPropagation()}
@@ -1728,6 +1758,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
               showEdges={edgesActive}
               showArrowheads={arrowActive}
               showText={textActive}
+              showLinePlacement={linePlacementActive}
               onChange={onDrawChange}
               onAction={onLayerAction}
             />

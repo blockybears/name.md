@@ -72,7 +72,6 @@ export function createElement(props: ElementInput, style: DrawStyle = 'sketchy')
   if (props.type === 'text') {
     merged.text = (props as { text?: unknown }).text ?? ''
     merged.fontSize = (props as { fontSize?: unknown }).fontSize ?? 20
-    merged.fontFamily = (props as { fontFamily?: unknown }).fontFamily ?? 'inherit'
     merged.align = (props as { align?: unknown }).align ?? 'left'
   }
 

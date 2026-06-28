@@ -1,6 +1,7 @@
 import { viewBoxForScene, rectToViewBox } from '../camera'
 import { resolveColor } from '../color'
 import { sceneElements } from '../diagram'
+import { fontStack } from '../fonts'
 import { diamondPath, ellipsePath, polylinePath, rectPath, roundedRectPoints, smoothPath } from './shapes'
 import {
   ellipsePoints,
@@ -11,7 +12,7 @@ import {
   roughClosedCurve,
   roughPolyline,
 } from './sketch'
-import type { Point, Rect, Scene, SketchElement, TextAlign } from '../types'
+import type { Point, Rect, Scene, SketchColor, SketchElement, TextAlign } from '../types'
 
 export interface RenderPath {
   kind: 'path'
@@ -21,6 +22,8 @@ export interface RenderPath {
   fill: string
   dash?: string
   opacity?: number
+  /** Optional rotation (deg) about (cx, cy) — used by label backdrops. */
+  rotate?: { deg: number; cx: number; cy: number }
 }
 
 export interface RenderText {
@@ -30,10 +33,15 @@ export interface RenderText {
   text: string
   fontSize: number
   fontFamily: string
+  fontWeight?: number
+  fontStyle?: 'normal' | 'italic'
   anchor: 'start' | 'middle' | 'end'
   baseline?: 'auto' | 'middle'
   fill: string
   opacity?: number
+  /** Optional extra rotation (deg) about (cx, cy) — used to keep text level on
+   *  rotated shapes, or to align a label with a line. */
+  rotate?: { deg: number; cx: number; cy: number }
 }
 
 export type RenderShape = RenderPath | RenderText
@@ -223,23 +231,49 @@ function transformFor(element: SketchElement): string {
   return parts.join(' ')
 }
 
+function textStyleOf(element: SketchElement, defaultColor: SketchColor) {
+  return {
+    fontFamily: fontStack(element.fontFamily),
+    fontWeight: element.fontBold ? 700 : 400,
+    fontStyle: element.fontItalic ? ('italic' as const) : ('normal' as const),
+    fill: resolveColor(element.textColor ?? defaultColor),
+  }
+}
+
+/** Counter-rotation that keeps text level when the element is rotated. */
+function levelRotation(element: SketchElement, cx: number, cy: number): RenderText['rotate'] | undefined {
+  if (element.textOrientation === 'horizontal' && element.angle) {
+    return { deg: (-element.angle * 180) / Math.PI, cx, cy }
+  }
+  return undefined
+}
+
 function elementShapes(element: SketchElement): RenderShape[] {
   if (element.type === 'text') {
-    const color = resolveColor(element.stroke)
+    const ts = textStyleOf(element, element.stroke)
     const anchor = anchorFor[element.align]
     const anchorX = element.align === 'left' ? 0 : element.align === 'center' ? element.width / 2 : element.width
     const lineHeight = element.fontSize * 1.25
-    return element.text.split('\n').map((line, index) => ({
-      kind: 'text' as const,
-      x: anchorX,
-      y: (index + 1) * lineHeight - element.fontSize * 0.25,
-      text: line,
-      fontSize: element.fontSize,
-      fontFamily: element.fontFamily,
-      anchor,
-      fill: color,
-      opacity: element.opacity,
-    }))
+    const lines = element.text.split('\n')
+    const shapes: RenderShape[] = []
+    const rotate = levelRotation(element, element.width / 2, element.height / 2)
+    if (element.wipeout) {
+      shapes.push({ kind: 'path', d: rectAround(element.width / 2, element.height / 2, element.width + 8, lines.length * lineHeight + 4), stroke: 'none', strokeWidth: 0, fill: resolveColor({ kind: 'token', token: 'canvas' }), opacity: 1 })
+    }
+    lines.forEach((line, index) => {
+      shapes.push({
+        kind: 'text',
+        x: anchorX,
+        y: (index + 1) * lineHeight - element.fontSize * 0.25,
+        text: line,
+        fontSize: element.fontSize,
+        anchor,
+        opacity: element.opacity,
+        rotate,
+        ...ts,
+      })
+    })
+    return shapes
   }
 
   const shapes: RenderShape[] = []
@@ -314,36 +348,55 @@ function elementShapes(element: SketchElement): RenderShape[] {
     }
   }
 
-  // Label: centered in container shapes, at the midpoint of lines/arrows.
+  // Label: centered in container shapes, along the midpoint of lines/arrows.
   if (element.label) {
     const fontSize = element.labelFontSize ?? 16
     const lines = element.label.split('\n')
     const lineHeight = fontSize * 1.25
+    const longest = lines.reduce((max, line) => Math.max(max, line.length), 1)
+    // Labels never inherit the shape's stroke colour — default to foreground.
+    const ts = textStyleOf(element, { kind: 'token', token: 'foreground' })
     let cx = element.width / 2
     let cy = element.height / 2
-    let backdrop = false
-    if (element.type === 'line' || element.type === 'arrow') {
-      // Midpoint of the polyline (in local coords), with a small backdrop so
-      // the text reads over the line.
+    let rotate: RenderText['rotate']
+    const isLinear = element.type === 'line' || element.type === 'arrow'
+    if (isLinear) {
       const pts = element.points
-      const mid = pts[Math.floor(pts.length / 2)] ?? { x: cx, y: cy }
-      const prev = pts[Math.floor(pts.length / 2) - 1] ?? mid
-      cx = (mid.x + prev.x) / 2
-      cy = (mid.y + prev.y) / 2
-      backdrop = true
-    } else if (!(element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond' || element.type === 'polygon')) {
+      const i = Math.max(1, Math.floor(pts.length / 2))
+      const a = pts[i - 1] ?? { x: 0, y: 0 }
+      const b = pts[i] ?? a
+      cx = (a.x + b.x) / 2
+      cy = (a.y + b.y) / 2
+      const angle = Math.atan2(b.y - a.y, b.x - a.x)
+      // Offset above/on/below the line (perpendicular).
+      const place = element.labelPlacement ?? 'on'
+      const off = place === 'above' ? -(fontSize * 0.8) : place === 'below' ? fontSize * 0.8 : 0
+      cx += Math.cos(angle + Math.PI / 2) * off
+      cy += Math.sin(angle + Math.PI / 2) * off
+      // Align text with the line unless the user forced it level.
+      if (element.textOrientation !== 'horizontal') {
+        let deg = (angle * 180) / Math.PI
+        if (deg > 90 || deg < -90) deg += 180 // keep upright
+        rotate = { deg, cx, cy }
+      } else if (element.angle) {
+        rotate = { deg: (-element.angle * 180) / Math.PI, cx, cy }
+      }
+    } else if (element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond' || element.type === 'polygon') {
+      rotate = levelRotation(element, cx, cy)
+    } else {
       return shapes
     }
     const startY = cy - ((lines.length - 1) * lineHeight) / 2
-    if (backdrop) {
-      const longest = lines.reduce((max, line) => Math.max(max, line.length), 1)
+    // Wipeout (or the default line backdrop) keeps the label legible.
+    if (element.wipeout || isLinear) {
       shapes.push({
         kind: 'path',
         d: rectAround(cx, cy, longest * fontSize * 0.58 + 8, lines.length * lineHeight + 4),
         stroke: 'none',
         strokeWidth: 0,
         fill: resolveColor({ kind: 'token', token: 'canvas' }),
-        opacity: 0.85,
+        opacity: element.wipeout ? 1 : 0.85,
+        rotate,
       })
     }
     lines.forEach((line, index) => {
@@ -353,11 +406,11 @@ function elementShapes(element: SketchElement): RenderShape[] {
         y: startY + index * lineHeight,
         text: line,
         fontSize,
-        fontFamily: 'inherit',
         anchor: 'middle',
         baseline: 'middle',
-        fill: resolveColor(element.stroke),
         opacity: element.opacity,
+        rotate,
+        ...ts,
       })
     })
   }
@@ -402,13 +455,19 @@ function opacityAttr(opacity?: number): string {
   return opacity != null && opacity < 1 ? ` opacity="${opacity}"` : ''
 }
 
+function rotateAttr(rotate?: { deg: number; cx: number; cy: number }): string {
+  return rotate && rotate.deg ? ` transform="rotate(${rotate.deg.toFixed(2)} ${rotate.cx.toFixed(2)} ${rotate.cy.toFixed(2)})"` : ''
+}
+
 function shapeToString(shape: RenderShape): string {
   if (shape.kind === 'path') {
     const dash = shape.dash ? ` stroke-dasharray="${shape.dash}"` : ''
-    return `<path d="${shape.d}" stroke="${shape.stroke}" stroke-width="${shape.strokeWidth}" fill="${shape.fill}"${dash}${opacityAttr(shape.opacity)} stroke-linejoin="round" stroke-linecap="round" />`
+    return `<path d="${shape.d}" stroke="${shape.stroke}" stroke-width="${shape.strokeWidth}" fill="${shape.fill}"${dash}${opacityAttr(shape.opacity)}${rotateAttr(shape.rotate)} stroke-linejoin="round" stroke-linecap="round" />`
   }
   const baseline = shape.baseline === 'middle' ? ' dominant-baseline="central"' : ''
-  return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}" text-anchor="${shape.anchor}"${baseline} fill="${shape.fill}"${opacityAttr(shape.opacity)}>${escapeXml(shape.text)}</text>`
+  const weight = shape.fontWeight && shape.fontWeight !== 400 ? ` font-weight="${shape.fontWeight}"` : ''
+  const fontStyle = shape.fontStyle === 'italic' ? ' font-style="italic"' : ''
+  return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}"${weight}${fontStyle} text-anchor="${shape.anchor}"${baseline} fill="${shape.fill}"${opacityAttr(shape.opacity)}${rotateAttr(shape.rotate)}>${escapeXml(shape.text)}</text>`
 }
 
 export function sceneToSvgString(scene: Scene, options: RenderOptions = {}): string {

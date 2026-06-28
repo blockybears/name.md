@@ -1,5 +1,6 @@
 export * from './types'
 export * from './color'
+export * from './fonts'
 export * from './geometry'
 export * from './camera'
 export * from './scene'
