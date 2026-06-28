@@ -172,11 +172,253 @@
   flex-wrap: wrap;
 }
 
+/* ---- grouped toolbar: tool buttons, flyout triggers, active states ---- */
+
+/* Active tool = solid blue button (icon inverts to white via currentColor). */
+.sketch-tool-btn,
+.sketch-flyout-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.sketch-tool-btn:hover,
+.sketch-flyout-trigger:hover {
+  background: var(--sketch-hover, rgba(127, 127, 127, 0.14));
+}
+.sketch-tool-btn[aria-pressed='true'] {
+  background: var(--sketch-accent, #2563eb);
+  color: #fff;
+  border-color: var(--sketch-accent, #2563eb);
+}
+/* Menu trigger that is "active" (e.g. an open menu / live state): soft tint. */
+.sketch-flyout-trigger[aria-pressed='true'],
+.sketch-flyout-trigger[aria-expanded='true'] {
+  background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
+  border-color: var(--sketch-accent, #2563eb);
+  color: var(--sketch-accent, #2563eb);
+}
+.sketch-tool-caret {
+  opacity: 0.55;
+  margin-left: -1px;
+}
+.sketch-tool-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+}
+
+.sketch-flyout {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Desktop: a compact popover above (the toolbar can be top or bottom). */
+.sketch-flyout-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 184px;
+  max-width: 280px;
+  padding: 6px;
+  border-radius: 11px;
+  background: var(--sketch-surface, #fff);
+  border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.25));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
+}
+
+/* Menu lists + items */
+.sketch-menu-list,
+.sketch-style-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sketch-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sketch-foreground, #1f2937);
+  font-size: 13px;
+  cursor: pointer;
+}
+.sketch-menu-item:hover {
+  background: var(--sketch-hover, rgba(127, 127, 127, 0.12));
+}
+.sketch-menu-item[aria-pressed='true'] {
+  background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
+  border-color: var(--sketch-accent, #2563eb);
+  color: var(--sketch-accent, #2563eb);
+}
+.sketch-menu-danger {
+  color: #e03131;
+}
+.sketch-menu-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sketch-muted, #6b7280);
+  padding: 4px 9px 2px;
+}
+.sketch-menu-divider {
+  height: 1px;
+  margin: 4px 4px;
+  background: var(--sketch-panel-border, rgba(127, 127, 127, 0.22));
+}
+
+/* Two-level style: drill-in rows + a back header */
+.sketch-flyout-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sketch-foreground, #1f2937);
+  font-size: 13px;
+  cursor: pointer;
+}
+.sketch-flyout-row:hover {
+  background: var(--sketch-hover, rgba(127, 127, 127, 0.12));
+}
+.sketch-flyout-row-label {
+  flex: 1;
+  text-align: left;
+}
+.sketch-flyout-row-value {
+  display: inline-flex;
+  align-items: center;
+}
+.sketch-flyout-row-chevron {
+  transform: rotate(-90deg);
+  opacity: 0.5;
+}
+.sketch-flyout-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 6px 8px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.2));
+  background: transparent;
+  color: var(--sketch-foreground, #1f2937);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sketch-flyout-back svg {
+  transform: rotate(90deg);
+}
+.sketch-row-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+}
+.sketch-style-seg {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px 4px;
+}
+.sketch-style-seg input[type='range'] {
+  width: 100%;
+}
+
+/* Mobile: bottom sheets instead of floating popovers. */
+.sketch-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+.sketch-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+}
+.sketch-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px 16px 0 0;
+  background: var(--sketch-surface, #fff);
+  color: var(--sketch-foreground, #1f2937);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.25);
+  animation: sketch-sheet-up 0.16s ease-out;
+}
+@keyframes sketch-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.sketch-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 4px 2px 8px;
+}
+.sketch-sheet-body {
+  overflow-y: auto;
+}
+
 /* Group related toolbar buttons; a thin divider separates groups. */
 .sketch-tb-group {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+}
+
+/* Mobile: move the edit toolbar to the bottom (thumb-reachable); flyouts open
+ *  as bottom sheets. A read bar (if shown) stays on top. */
+@media (max-width: 639px) {
+  .sketch-editor.is-edit .sketch-topbar {
+    order: 5;
+    border-top: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
+    border-bottom: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .sketch-editor.is-edit .sketch-body {
+    order: 1;
+  }
+  .sketch-resize-handle {
+    display: none;
+  }
+  /* Desktop popovers become sheets via the portal; popover fallback widens. */
+  .sketch-flyout-pop {
+    min-width: 220px;
+  }
 }
 .sketch-tb-divider {
   width: 1px;
@@ -206,14 +448,6 @@
 
 .sketch-topbar button:hover {
   background: var(--sketch-hover, rgba(127, 127, 127, 0.14));
-}
-
-/* Selected state: a soft accent tint with an accent-coloured icon, so the icon
- *  stays readable (a solid fill would hide it) while selection is still clear. */
-.sketch-topbar button[aria-pressed='true'] {
-  background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
-  border-color: var(--sketch-accent, #2563eb);
-  color: var(--sketch-accent, #2563eb);
 }
 
 .sketch-topbar button:disabled {

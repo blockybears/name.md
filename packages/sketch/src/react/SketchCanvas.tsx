@@ -78,7 +78,7 @@ import { RenderedScene } from './RenderedScene'
 import { Icon } from './editor/Icon'
 import { Toolbar } from './editor/Toolbar'
 import { DataEditor } from './editor/DataEditor'
-import { PropertiesBar, type LayerAction } from './editor/PropertiesBar'
+import type { LayerAction } from './editor/PropertiesBar'
 import { defaultDrawState, type DrawState, type ToolId } from './editor/types'
 import './editor/editor.css'
 
@@ -201,8 +201,6 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
   const [codeOpen, setCodeOpen] = useState(false)
   const [codeText, setCodeText] = useState('')
   const [codeError, setCodeError] = useState<string | null>(null)
-  // Collapse the properties panel by default on small (mobile) viewports.
-  const [panelOpen, setPanelOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 640)
   const [importState, setImportState] = useState<{ type: 'mermaid' | 'json'; text: string; error: string | null } | null>(null)
   const pointersRef = useRef<Map<number, Point>>(new Map())
   const pinchRef = useRef<{ dist: number; mid: Point; camera: Camera } | null>(null)
@@ -1656,8 +1654,13 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
           onToggleGrid={() => setGridEnabled((value) => !value)}
           codeOpen={codeOpen}
           onToggleCode={toggleCode}
-          panelOpen={panelOpen}
-          onTogglePanel={() => setPanelOpen((value) => !value)}
+          draw={draw}
+          showFill={fillableActive}
+          showEdges={edgesActive}
+          showArrowheads={arrowActive}
+          showText={textActive}
+          showLinePlacement={linePlacementActive}
+          onDrawChange={onDrawChange}
           onExit={() => setMode('read')}
         />
       )}
@@ -1727,7 +1730,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
               />
             )}
 
-            {vertexTarget ? (
+            {readOnly ? null : vertexTarget ? (
               <g pointerEvents="none" transform={selectionTransform}>
                 {vertexTarget.points.map((p, i) => (
                   <circle
@@ -1760,7 +1763,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
               )
             )}
 
-            {marquee && (
+            {!readOnly && marquee && (
               <rect x={marquee.x} y={marquee.y} width={marquee.width} height={marquee.height} fill="var(--sketch-accent, #2563eb)" fillOpacity={0.08} stroke="var(--sketch-accent, #2563eb)" strokeWidth={scenePerPixel} pointerEvents="none" />
             )}
 
@@ -1781,7 +1784,8 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
             )}
 
             {/* Drag affordance: resize grips on each gantt bar's edges. */}
-            {ganttEditGeo &&
+            {!readOnly &&
+              ganttEditGeo &&
               ganttEditGeo.bars.map((bar) =>
                 bar.milestone ? null : (
                   <g key={bar.index} pointerEvents="none">
@@ -1917,19 +1921,6 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
             </div>
           )}
 
-          {!readOnly && panelOpen && (
-            <PropertiesBar
-              draw={draw}
-              hasSelection={selected.length > 0}
-              showFill={fillableActive}
-              showEdges={edgesActive}
-              showArrowheads={arrowActive}
-              showText={textActive}
-              showLinePlacement={linePlacementActive}
-              onChange={onDrawChange}
-              onAction={onLayerAction}
-            />
-          )}
         </div>
       </div>
 

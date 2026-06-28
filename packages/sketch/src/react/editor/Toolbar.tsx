@@ -1,18 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
 import type { DiagramKind } from '../../core'
 import { DIAGRAM_KINDS } from '../../core'
+import { colorPreview } from './colorUtils'
+import { Flyout } from './Flyout'
 import { Icon, type IconName } from './Icon'
-import type { ToolId } from './types'
+import { StyleMenu } from './StyleMenu'
+import { TextMenu } from './TextMenu'
+import type { DrawState, ToolId } from './types'
 
-const tools: Array<{ id: ToolId; icon: IconName; title: string; key: string }> = [
-  { id: 'select', icon: 'select', title: 'Select', key: 'V' },
-  { id: 'rectangle', icon: 'rectangle', title: 'Rectangle', key: 'R' },
-  { id: 'ellipse', icon: 'ellipse', title: 'Ellipse', key: 'O' },
-  { id: 'diamond', icon: 'diamond', title: 'Diamond', key: 'D' },
-  { id: 'arrow', icon: 'arrow', title: 'Arrow', key: 'A' },
-  { id: 'line', icon: 'line', title: 'Line', key: 'L' },
-  { id: 'freedraw', icon: 'freedraw', title: 'Draw', key: 'P' },
-  { id: 'text', icon: 'text', title: 'Text', key: 'T' },
+const shapeTools: Array<{ id: ToolId; icon: IconName; label: string }> = [
+  { id: 'rectangle', icon: 'rectangle', label: 'Rectangle' },
+  { id: 'ellipse', icon: 'ellipse', label: 'Ellipse' },
+  { id: 'diamond', icon: 'diamond', label: 'Diamond' },
+]
+const connectorTools: Array<{ id: ToolId; icon: IconName; label: string }> = [
+  { id: 'arrow', icon: 'arrow', label: 'Arrow' },
+  { id: 'line', icon: 'line', label: 'Line' },
 ]
 
 export interface ToolbarProps {
@@ -38,187 +40,139 @@ export interface ToolbarProps {
   onToggleGrid: () => void
   codeOpen: boolean
   onToggleCode: () => void
-  panelOpen: boolean
-  onTogglePanel: () => void
+  // Style context (which controls apply to the current selection/tool).
+  draw: DrawState
+  showFill: boolean
+  showEdges: boolean
+  showArrowheads: boolean
+  showText: boolean
+  showLinePlacement: boolean
+  onDrawChange: (patch: Partial<DrawState>) => void
   onExit?: () => void
 }
 
-export function Toolbar({
-  tool,
-  onTool,
-  onInsertDiagram,
-  onImport,
-  onNewChart,
-  onClear,
-  zoom,
-  onZoomIn,
-  onZoomOut,
-  onZoomReset,
-  onFit,
-  canUndo,
-  canRedo,
-  onUndo,
-  onRedo,
-  onSetView,
-  snapEnabled,
-  onToggleSnap,
-  gridEnabled,
-  onToggleGrid,
-  codeOpen,
-  onToggleCode,
-  panelOpen,
-  onTogglePanel,
-  onExit,
-}: ToolbarProps) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement | null>(null)
+/** A labelled option button inside a flyout menu. */
+function MenuItem({ icon, label, active, onClick }: { icon?: IconName; label: string; active?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className="sketch-menu-item" aria-pressed={active} onClick={onClick}>
+      {icon && <Icon name={icon} size={16} />}
+      <span>{label}</span>
+    </button>
+  )
+}
 
-  useEffect(() => {
-    if (!menuOpen) {
-      return
-    }
-    const onDown = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [menuOpen])
+/**
+ * Edit-mode toolbar: a tidy row of grouped icon menus. The top level shows only
+ * the current tool/state; detailed options live inside each flyout.
+ */
+export function Toolbar(props: ToolbarProps) {
+  const { tool, onTool, draw } = props
+  const shapeActive = shapeTools.some((t) => t.id === tool)
+  const connectorActive = connectorTools.some((t) => t.id === tool)
+  const activeShape = shapeTools.find((t) => t.id === tool) ?? shapeTools[0]
+  const activeConnector = connectorTools.find((t) => t.id === tool) ?? connectorTools[0]
 
   return (
     <div className="sketch-topbar">
-      <div className="sketch-tools">
-        {tools.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            className="sketch-icon-btn"
-            aria-pressed={tool === entry.id}
-            aria-label={entry.title}
-            title={`${entry.title} (${entry.key})`}
-            onClick={() => onTool(entry.id)}
-          >
-            <Icon name={entry.icon} />
-          </button>
-        ))}
+      <div className="sketch-tb-group">
+        <button type="button" className="sketch-tool-btn" aria-label="Select" aria-pressed={tool === 'select'} title="Select (V)" onClick={() => onTool('select')}>
+          <Icon name="select" />
+        </button>
+
+        <Flyout title="Insert" trigger={<><Icon name="diagram" /><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
+          {(close) => (
+            <div className="sketch-menu-list">
+              <div className="sketch-menu-label">Diagrams</div>
+              {DIAGRAM_KINDS.map((kind) => (
+                <MenuItem key={kind.id} label={kind.label} onClick={() => { props.onInsertDiagram(kind.id); close() }} />
+              ))}
+              <div className="sketch-menu-divider" />
+              <MenuItem icon="chart" label="Chart from data…" onClick={() => { props.onNewChart(); close() }} />
+              <MenuItem icon="import" label="Import Mermaid…" onClick={() => { props.onImport('mermaid'); close() }} />
+              <MenuItem icon="import" label="Import JSON…" onClick={() => { props.onImport('json'); close() }} />
+            </div>
+          )}
+        </Flyout>
+
+        <Flyout title="Shape" active={shapeActive} tool trigger={<><Icon name={activeShape.icon} /><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
+          {(close) => (
+            <div className="sketch-menu-list">
+              {shapeTools.map((t) => (
+                <MenuItem key={t.id} icon={t.icon} label={t.label} active={tool === t.id} onClick={() => { onTool(t.id); close() }} />
+              ))}
+            </div>
+          )}
+        </Flyout>
+
+        <Flyout title="Connector" active={connectorActive} tool trigger={<><Icon name={activeConnector.icon} /><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
+          {(close) => (
+            <div className="sketch-menu-list">
+              {connectorTools.map((t) => (
+                <MenuItem key={t.id} icon={t.icon} label={t.label} active={tool === t.id} onClick={() => { onTool(t.id); close() }} />
+              ))}
+            </div>
+          )}
+        </Flyout>
+
+        <button type="button" className="sketch-tool-btn" aria-label="Draw" aria-pressed={tool === 'freedraw'} title="Freehand draw (P)" onClick={() => onTool('freedraw')}>
+          <Icon name="freedraw" />
+        </button>
+
+        <Flyout title="Text" active={tool === 'text' || props.showText} trigger={<><Icon name="text" /><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
+          {(close) => (
+            <div className="sketch-menu-list">
+              <MenuItem icon="text" label="Text tool" active={tool === 'text'} onClick={() => { onTool('text'); close() }} />
+              <div className="sketch-menu-divider" />
+              <TextMenu draw={draw} showLinePlacement={props.showLinePlacement} onChange={props.onDrawChange} />
+            </div>
+          )}
+        </Flyout>
       </div>
+
+      <div className="sketch-tb-divider" />
+
+      <Flyout title="Style" className="sketch-style-flyout" trigger={<><span className="sketch-tool-swatch" style={{ background: colorPreview(draw.stroke) }} /><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
+        <StyleMenu draw={draw} showFill={props.showFill} showEdges={props.showEdges} showArrowheads={props.showArrowheads} onChange={props.onDrawChange} />
+      </Flyout>
 
       <div className="sketch-topbar-spacer" />
 
-      <div className="sketch-diagram-menu" ref={menuRef}>
-        <button type="button" className="sketch-diagram-trigger" title="Insert a diagram" onClick={() => setMenuOpen((value) => !value)}>
-          <Icon name="diagram" />
-          <span>Diagram</span>
-          <span className="sketch-caret">▾</span>
-        </button>
-        {menuOpen && (
-          <div className="sketch-diagram-dropdown">
-            {DIAGRAM_KINDS.map((kind) => (
-              <button
-                key={kind.id}
-                type="button"
-                onClick={() => {
-                  onInsertDiagram(kind.id)
-                  setMenuOpen(false)
-                }}
-              >
-                {kind.label}
-              </button>
-            ))}
-            <div className="sketch-dropdown-divider" />
-            <button type="button" onClick={() => { onNewChart(); setMenuOpen(false) }}>
-              <Icon name="chart" size={15} /> Chart from data…
-            </button>
-            <button type="button" onClick={() => { onImport('mermaid'); setMenuOpen(false) }}>
-              <Icon name="import" size={15} /> Import Mermaid…
-            </button>
-            <button type="button" onClick={() => { onImport('json'); setMenuOpen(false) }}>
-              <Icon name="import" size={15} /> Import JSON…
+      <Flyout title="View" trigger={<Icon name="zoom-in" />}>
+        <div className="sketch-menu-list">
+          <div className="sketch-style-seg">
+            <span className="sketch-prop-label">Zoom</span>
+            <div className="sketch-segmented">
+              <button type="button" aria-label="Zoom out" title="Zoom out" onClick={props.onZoomOut}><Icon name="zoom-out" size={16} /></button>
+              <button type="button" title="Reset zoom" onClick={props.onZoomReset}>{Math.round(props.zoom * 100)}%</button>
+              <button type="button" aria-label="Zoom in" title="Zoom in" onClick={props.onZoomIn}><Icon name="zoom-in" size={16} /></button>
+            </div>
+          </div>
+          <MenuItem icon="fit" label="Fit to content" onClick={props.onFit} />
+          <MenuItem icon="set-view" label="Set read framing" onClick={props.onSetView} />
+        </div>
+      </Flyout>
+
+      <Flyout title="More" trigger={<Icon name="more" />}>
+        {(close) => (
+          <div className="sketch-menu-list">
+            <MenuItem icon="undo" label="Undo" onClick={props.onUndo} />
+            <MenuItem icon="redo" label="Redo" onClick={props.onRedo} />
+            <div className="sketch-menu-divider" />
+            <MenuItem icon="snap" label={props.snapEnabled ? 'Snapping: on' : 'Snapping: off'} active={props.snapEnabled} onClick={props.onToggleSnap} />
+            <MenuItem icon="grid" label={props.gridEnabled ? 'Grid: on' : 'Grid: off'} active={props.gridEnabled} onClick={props.onToggleGrid} />
+            <MenuItem icon="code" label="View JSON" active={props.codeOpen} onClick={() => { props.onToggleCode(); close() }} />
+            <div className="sketch-menu-divider" />
+            <button type="button" className="sketch-menu-item sketch-menu-danger" onClick={() => { props.onClear(); close() }}>
+              <Icon name="delete" size={16} /> <span>Clear canvas</span>
             </button>
           </div>
         )}
-      </div>
-
-      <div className="sketch-zoom">
-        <button type="button" className="sketch-icon-btn" aria-label="Zoom out" title="Zoom out" onClick={onZoomOut}>
-          <Icon name="zoom-out" />
-        </button>
-        <button type="button" className="sketch-zoom-level" title="Reset zoom" onClick={onZoomReset}>
-          {Math.round(zoom * 100)}%
-        </button>
-        <button type="button" className="sketch-icon-btn" aria-label="Zoom in" title="Zoom in" onClick={onZoomIn}>
-          <Icon name="zoom-in" />
-        </button>
-        <button type="button" className="sketch-icon-btn" aria-label="Fit to content" title="Fit to content" onClick={onFit}>
-          <Icon name="fit" />
-        </button>
-      </div>
-
-      <div className="sketch-history">
-        <button type="button" className="sketch-icon-btn" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!canUndo} onClick={onUndo}>
-          <Icon name="undo" />
-        </button>
-        <button type="button" className="sketch-icon-btn" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!canRedo} onClick={onRedo}>
-          <Icon name="redo" />
-        </button>
-      </div>
+      </Flyout>
 
       <div className="sketch-tb-divider" />
 
-      <div className="sketch-tb-group">
-        <button
-          type="button"
-          className="sketch-icon-btn"
-          aria-label="Alignment snapping"
-          aria-pressed={snapEnabled}
-          title="Snap to alignment guides (magnet)"
-          onClick={onToggleSnap}
-        >
-          <Icon name="snap" />
-        </button>
-        <button
-          type="button"
-          className="sketch-icon-btn"
-          aria-label="Grid"
-          aria-pressed={gridEnabled}
-          title="Show grid and snap to it"
-          onClick={onToggleGrid}
-        >
-          <Icon name="grid" />
-        </button>
-        <button type="button" className="sketch-icon-btn" aria-label="Set read view" title="Set the framing used when reading" onClick={onSetView}>
-          <Icon name="set-view" />
-        </button>
-        <button
-          type="button"
-          className="sketch-icon-btn"
-          aria-label="Code view"
-          aria-pressed={codeOpen}
-          title="View / edit as JSON"
-          onClick={onToggleCode}
-        >
-          <Icon name="code" />
-        </button>
-        <button
-          type="button"
-          className="sketch-icon-btn"
-          aria-label="Properties panel"
-          aria-pressed={panelOpen}
-          title="Show / hide properties"
-          onClick={onTogglePanel}
-        >
-          <Icon name="sliders" />
-        </button>
-        <button type="button" className="sketch-icon-btn sketch-tb-danger" aria-label="Clear canvas" title="Clear the canvas (undoable)" onClick={onClear}>
-          <Icon name="delete" />
-        </button>
-      </div>
-
-      <div className="sketch-tb-divider" />
-
-      {onExit && (
-        <button type="button" className="sketch-done" title="Lock — back to read mode" onClick={onExit}>
+      {props.onExit && (
+        <button type="button" className="sketch-done" title="Lock — back to read mode" onClick={props.onExit}>
           <Icon name="lock" size={15} /> Read
         </button>
       )}
