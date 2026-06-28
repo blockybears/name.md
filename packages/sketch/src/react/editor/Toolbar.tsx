@@ -228,8 +228,8 @@ export function Toolbar({
         <Icon name="set-view" />
       </button>
       {onExit && (
-        <button type="button" className="sketch-done" onClick={onExit}>
-          Done
+        <button type="button" className="sketch-done" title="Lock — back to read mode" onClick={onExit}>
+          <Icon name="lock" size={15} /> Read
         </button>
       )}
     </div>

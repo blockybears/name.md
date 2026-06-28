@@ -52,6 +52,11 @@ export type IconName =
   | 'pencil'
   | 'chart'
   | 'chevron-down'
+  | 'lock'
+  | 'unlock'
+  | 'pencil-edit'
+  | 'more'
+  | 'fullscreen'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -289,6 +294,44 @@ function paths(name: IconName) {
       )
     case 'chevron-down':
       return <path d="M6 9l6 6 6-6" />
+    case 'lock':
+      return (
+        <>
+          <rect x="5" y="11" width="14" height="9" rx="2" />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </>
+      )
+    case 'unlock':
+      return (
+        <>
+          <rect x="5" y="11" width="14" height="9" rx="2" />
+          <path d="M8 11V8a4 4 0 0 1 7.5-2" />
+        </>
+      )
+    case 'pencil-edit':
+      return (
+        <>
+          <path d="M14.5 5.5l4 4L9 19l-4 1 1-4z" />
+          <path d="M13 7l4 4" />
+        </>
+      )
+    case 'more':
+      return (
+        <>
+          <circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+          <circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        </>
+      )
+    case 'fullscreen':
+      return (
+        <>
+          <path d="M4 9V5a1 1 0 0 1 1-1h4" />
+          <path d="M20 9V5a1 1 0 0 0-1-1h-4" />
+          <path d="M4 15v4a1 1 0 0 0 1 1h4" />
+          <path d="M20 15v4a1 1 0 0 1-1 1h-4" />
+        </>
+      )
     case 'reshape':
       return (
         <>

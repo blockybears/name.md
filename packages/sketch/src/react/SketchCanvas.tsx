@@ -98,10 +98,20 @@ type Gesture =
 export interface SketchCanvasProps {
   scene: Scene
   onChange?: (scene: Scene) => void
+  /** Read (locked) vs edit (unlocked). Controlled if provided. */
+  mode?: 'read' | 'edit'
+  /** Initial mode when uncontrolled. Defaults to 'read' (locked) — safe for
+   *  embedding in notes. */
+  defaultMode?: 'read' | 'edit'
+  onModeChange?: (mode: 'read' | 'edit') => void
+  /** @deprecated use onModeChange — still called when leaving edit mode. */
   onExit?: () => void
   className?: string
   style?: CSSProperties
 }
+
+/** How long (ms) to hold on the locked canvas before it unlocks to edit. */
+const LONG_PRESS_MS = 700
 
 const HANDLE_PX = 9
 const ROTATE_OFFSET_PX = 26
@@ -132,9 +142,38 @@ function measureText(text: string, fontSize: number): { width: number; height: n
   return { width: Math.max(20, longest * fontSize * 0.6), height: lines.length * fontSize * 1.25 }
 }
 
-export function SketchCanvas({ scene: initialScene, onChange, onExit, className, style }: SketchCanvasProps) {
+export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, defaultMode, onModeChange, onExit, className, style }: SketchCanvasProps) {
   const { ref: containerRef, size } = useElementSize()
   const svgRef = useRef<SVGSVGElement | null>(null)
+
+  // Read = locked, Edit = unlocked. Default read (safe for embedded notes).
+  const [uncontrolledMode, setUncontrolledMode] = useState<'read' | 'edit'>(defaultMode ?? 'read')
+  const mode = modeProp ?? uncontrolledMode
+  const readOnly = mode === 'read'
+  const setMode = useCallback(
+    (next: 'read' | 'edit') => {
+      onModeChange?.(next)
+      if (modeProp === undefined) {
+        setUncontrolledMode(next)
+      }
+      if (next === 'read') {
+        onExit?.()
+      }
+    },
+    [modeProp, onExit, onModeChange],
+  )
+  // Long-press-to-unlock feedback (mobile).
+  const [pressing, setPressing] = useState(false)
+  const [readMenuOpen, setReadMenuOpen] = useState(false)
+  const pressRef = useRef<{ timer: number; startClient: Point } | null>(null)
+  const cancelLongPress = useCallback(() => {
+    if (pressRef.current) {
+      clearTimeout(pressRef.current.timer)
+      pressRef.current = null
+    }
+    setPressing(false)
+  }, [])
+  const [fullscreen, setFullscreen] = useState(false)
 
   const [scene, setScene] = useState<Scene>(initialScene)
   const historyRef = useRef(new History<Scene>(initialScene))
@@ -454,6 +493,23 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
 
       const point = toScene(event.clientX, event.clientY)
 
+      // Locked (read) mode: a drag pans, a sustained hold unlocks to edit.
+      if (readOnly) {
+        gestureRef.current = { mode: 'pan', startClient: { x: event.clientX, y: event.clientY }, startCamera: camera }
+        cancelLongPress()
+        setPressing(true)
+        const timer = window.setTimeout(() => {
+          pressRef.current = null
+          setPressing(false)
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(18)
+          }
+          setMode('edit')
+        }, LONG_PRESS_MS)
+        pressRef.current = { timer, startClient: { x: event.clientX, y: event.clientY } }
+        return
+      }
+
       if (spaceDown || event.button === 1) {
         gestureRef.current = { mode: 'pan', startClient: { x: event.clientX, y: event.clientY }, startCamera: camera }
         return
@@ -612,7 +668,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setSelected([])
       }
     },
-    [camera, canResize, draw, flatElements, ganttEditGeo, selectedDiagram, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
+    [camera, canResize, cancelLongPress, draw, flatElements, ganttEditGeo, readOnly, selectedDiagram, setMode, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
   )
 
   const snapActive = snapEnabled || gridEnabled
@@ -699,6 +755,10 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         return
       }
       if (gesture.mode === 'pan') {
+        // A real pan cancels a pending long-press-to-unlock.
+        if (pressRef.current && Math.hypot(event.clientX - pressRef.current.startClient.x, event.clientY - pressRef.current.startClient.y) > 8) {
+          cancelLongPress()
+        }
         const dx = (event.clientX - gesture.startClient.x) / camera.zoom
         const dy = (event.clientY - gesture.startClient.y) / camera.zoom
         setCamera({ ...gesture.startCamera, x: gesture.startCamera.x - dx, y: gesture.startCamera.y - dy })
@@ -775,7 +835,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         setScene(next)
       }
     },
-    [applyGanttEdit, applyGesture, camera, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
+    [applyGanttEdit, applyGesture, camera, cancelLongPress, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onPointerUp = useCallback(
@@ -784,6 +844,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       if (pointersRef.current.size < 2) {
         pinchRef.current = null
       }
+      cancelLongPress()
       const gesture = gestureRef.current
       gestureRef.current = { mode: 'none' }
       setMarquee(null)
@@ -901,7 +962,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
       commit(next)
     },
-    [applyGanttEdit, applyGesture, commit, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
+    [applyGanttEdit, applyGesture, cancelLongPress, commit, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onWheel = useCallback(
@@ -957,6 +1018,9 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   // --- double-click: edit text/label ---
   const onDoubleClick = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (readOnly) {
+        return
+      }
       const point = toScene(event.clientX, event.clientY)
       // Prefer a direct hit; fall back to the current single selection so a
       // near-miss on a thin line still edits the intended element.
@@ -965,12 +1029,15 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         editLabelOf(hit.id)
       }
     },
-    [editLabelOf, scene.elements, scenePerPixel, selected, toScene],
+    [editLabelOf, readOnly, scene.elements, scenePerPixel, selected, toScene],
   )
 
   // --- right-click context menu + reshape ---
   const onContextMenu = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (readOnly) {
+        return // allow the host's native menu when locked
+      }
       event.preventDefault()
       const rect = containerRef.current?.getBoundingClientRect()
       const point = toScene(event.clientX, event.clientY)
@@ -982,7 +1049,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       setSelected([hit.id])
       setContextMenu({ left: event.clientX - rect.left, top: event.clientY - rect.top, elementId: hit.id })
     },
-    [containerRef, scene.elements, scenePerPixel, toScene],
+    [containerRef, readOnly, scene.elements, scenePerPixel, toScene],
   )
 
   const enterReshape = useCallback(
@@ -1503,37 +1570,93 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     return { left, top, width, fontPx, height: Math.max(fontPx * 1.4, editingElement.height * camera.zoom) }
   }, [camera, draw.fontSize, editingElement, editingText])
 
+  const toggleFullscreen = useCallback(() => {
+    const node = rootRef.current
+    if (!node) {
+      return
+    }
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    } else {
+      void node.requestFullscreen?.()
+    }
+  }, [])
+  useEffect(() => {
+    const onFsChange = () => setFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
   return (
-    <div ref={rootRef} className={`sketch-editor ${className ?? ''}`} style={{ ...style, height: editorHeight ?? scene.canvasHeight ?? style?.height }} onPaste={onPaste}>
-      <Toolbar
-        tool={tool}
-        onTool={setTool}
-        onInsertDiagram={insertDiagram}
-        onImport={openImport}
-        onNewChart={() => setDataEditor({ mode: 'create' })}
-        onClear={clearCanvas}
-        chartStyle={scene.diagramStyle ?? draw.style}
-        onChartStyle={(diagramStyle) => commit({ ...scene, diagramStyle })}
-        zoom={camera.zoom}
-        onZoomIn={() => zoomBy(1.2)}
-        onZoomOut={() => zoomBy(1 / 1.2)}
-        onZoomReset={() => zoomBy(1 / camera.zoom)}
-        onFit={fitContent}
-        canUndo={history.canUndo}
-        canRedo={history.canRedo}
-        onUndo={undo}
-        onRedo={redo}
-        onSetView={setDefaultView}
-        snapEnabled={snapEnabled}
-        onToggleSnap={() => setSnapEnabled((value) => !value)}
-        gridEnabled={gridEnabled}
-        onToggleGrid={() => setGridEnabled((value) => !value)}
-        codeOpen={codeOpen}
-        onToggleCode={toggleCode}
-        panelOpen={panelOpen}
-        onTogglePanel={() => setPanelOpen((value) => !value)}
-        onExit={onExit}
-      />
+    <div
+      ref={rootRef}
+      className={`sketch-editor ${readOnly ? 'is-read' : 'is-edit'} ${pressing ? 'is-pressing' : ''} ${className ?? ''}`}
+      style={{ ...style, height: fullscreen ? '100%' : editorHeight ?? scene.canvasHeight ?? style?.height }}
+      onPaste={onPaste}
+    >
+      {readOnly ? (
+        <div className="sketch-read-bar">
+          <span className="sketch-read-lock" title="Locked — hold the canvas or press Edit to unlock">
+            <Icon name="lock" size={14} /> Locked
+          </span>
+          <span className="sketch-read-spacer" />
+          <button type="button" className="sketch-icon-btn" aria-label="Fit to content" title="Fit" onClick={fitContent}>
+            <Icon name="fit" />
+          </button>
+          <button type="button" className="sketch-icon-btn" aria-label="Fullscreen" title="Fullscreen" onClick={toggleFullscreen}>
+            <Icon name="fullscreen" />
+          </button>
+          <div className="sketch-read-overflow">
+            <button type="button" className="sketch-icon-btn" aria-label="More" aria-expanded={readMenuOpen} title="More" onClick={() => setReadMenuOpen((v) => !v)}>
+              <Icon name="more" />
+            </button>
+            {readMenuOpen && (
+              <div className="sketch-read-menu" role="menu">
+                <button type="button" onClick={() => { setReadMenuOpen(false); setMode('edit') }}>
+                  <Icon name="pencil-edit" size={15} /> Edit sketch
+                </button>
+                <button type="button" onClick={() => { setReadMenuOpen(false); toggleFullscreen() }}>
+                  <Icon name="fullscreen" size={15} /> Fullscreen
+                </button>
+              </div>
+            )}
+          </div>
+          <button type="button" className="sketch-read-edit" title="Unlock to edit" onClick={() => setMode('edit')}>
+            <Icon name="unlock" size={15} /> Edit
+          </button>
+        </div>
+      ) : null}
+      {!readOnly && (
+        <Toolbar
+          tool={tool}
+          onTool={setTool}
+          onInsertDiagram={insertDiagram}
+          onImport={openImport}
+          onNewChart={() => setDataEditor({ mode: 'create' })}
+          onClear={clearCanvas}
+          chartStyle={scene.diagramStyle ?? draw.style}
+          onChartStyle={(diagramStyle) => commit({ ...scene, diagramStyle })}
+          zoom={camera.zoom}
+          onZoomIn={() => zoomBy(1.2)}
+          onZoomOut={() => zoomBy(1 / 1.2)}
+          onZoomReset={() => zoomBy(1 / camera.zoom)}
+          onFit={fitContent}
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          onUndo={undo}
+          onRedo={redo}
+          onSetView={setDefaultView}
+          snapEnabled={snapEnabled}
+          onToggleSnap={() => setSnapEnabled((value) => !value)}
+          gridEnabled={gridEnabled}
+          onToggleGrid={() => setGridEnabled((value) => !value)}
+          codeOpen={codeOpen}
+          onToggleCode={toggleCode}
+          panelOpen={panelOpen}
+          onTogglePanel={() => setPanelOpen((value) => !value)}
+          onExit={() => setMode('read')}
+        />
+      )}
       {codeOpen && (
         <div className="sketch-code-view">
           <div className="sketch-code-bar">
@@ -1673,6 +1796,16 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             )}
           </svg>
 
+          {readOnly && pressing && (
+            <div className="sketch-press-overlay" aria-hidden="true">
+              <div className="sketch-press-card">
+                <span className="sketch-press-ring" />
+                <Icon name="unlock" size={20} />
+                <span className="sketch-press-text">Hold to edit…</span>
+              </div>
+            </div>
+          )}
+
           {editorBox && editingText && (
             <textarea
               ref={textEditorRef}
@@ -1759,7 +1892,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             </div>
           )}
 
-          {panelOpen && (
+          {!readOnly && panelOpen && (
             <PropertiesBar
               draw={draw}
               hasSelection={selected.length > 0}
@@ -1810,15 +1943,17 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         </div>
       )}
 
-      <div
-        className="sketch-resize-handle"
-        title="Drag to resize the canvas height"
-        onPointerDown={onResizeDown}
-        onPointerMove={onResizeMove}
-        onPointerUp={onResizeUp}
-      >
-        <span className="sketch-resize-grip" />
-      </div>
+      {!readOnly && (
+        <div
+          className="sketch-resize-handle"
+          title="Drag to resize the canvas height"
+          onPointerDown={onResizeDown}
+          onPointerMove={onResizeMove}
+          onPointerUp={onResizeUp}
+        >
+          <span className="sketch-resize-grip" />
+        </div>
+      )}
     </div>
   )
 }

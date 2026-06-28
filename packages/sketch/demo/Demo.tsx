@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { createElement, createScene, literal, mermaidToData, token, type DrawStyle, type Scene } from '../src'
-import { SketchView } from '../src/react'
 import { SketchCanvas } from '../src/react/SketchCanvas'
 
 type Theme = 'light' | 'warm' | 'dark'
@@ -31,7 +30,6 @@ function sampleScene(style: DrawStyle) {
 
 export function Demo() {
   const [theme, setTheme] = useState<Theme>('light')
-  const [mode, setMode] = useState<'read' | 'edit'>('edit')
   const [scene, setScene] = useState<Scene>(() => sampleScene('soft'))
 
   useEffect(() => {
@@ -48,20 +46,11 @@ export function Demo() {
               {option}
             </button>
           ))}
-          <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')}>
-            edit
-          </button>
-          <button aria-pressed={mode === 'read'} onClick={() => setMode('read')}>
-            read
-          </button>
         </div>
       </header>
+      {/* The canvas owns read/edit (locked/unlocked); it opens locked. */}
       <div className="demo-card">
-        {mode === 'edit' ? (
-          <SketchCanvas scene={scene} onChange={setScene} onExit={() => setMode('read')} style={{ height: 480 }} />
-        ) : (
-          <SketchView scene={scene} className="sketch-read-view" />
-        )}
+        <SketchCanvas scene={scene} onChange={setScene} defaultMode="read" style={{ height: 480 }} />
       </div>
     </div>
   )
