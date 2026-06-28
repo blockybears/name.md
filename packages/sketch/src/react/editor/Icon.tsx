@@ -57,6 +57,7 @@ export type IconName =
   | 'pencil-edit'
   | 'more'
   | 'fullscreen'
+  | 'magnify'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -330,6 +331,13 @@ function paths(name: IconName) {
           <path d="M20 9V5a1 1 0 0 0-1-1h-4" />
           <path d="M4 15v4a1 1 0 0 0 1 1h4" />
           <path d="M20 15v4a1 1 0 0 1-1 1h-4" />
+        </>
+      )
+    case 'magnify':
+      return (
+        <>
+          <circle cx="11" cy="11" r="6" />
+          <path d="M20 20l-4.5-4.5" />
         </>
       )
     case 'reshape':

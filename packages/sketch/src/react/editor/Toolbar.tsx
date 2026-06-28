@@ -137,7 +137,7 @@ export function Toolbar(props: ToolbarProps) {
 
       <div className="sketch-topbar-spacer" />
 
-      <Flyout title="View" trigger={<Icon name="zoom-in" />}>
+      <Flyout title="View" trigger={<Icon name="magnify" />}>
         <div className="sketch-menu-list">
           <div className="sketch-style-seg">
             <span className="sketch-prop-label">Zoom</span>

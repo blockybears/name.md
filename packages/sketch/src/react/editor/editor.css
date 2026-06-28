@@ -165,11 +165,12 @@
 .sketch-topbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 3px;
+  padding: 5px 7px;
   border-bottom: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   background: var(--sketch-panel-bg, rgba(250, 250, 250, 0.96));
   flex-wrap: wrap;
+  font-size: 13px;
 }
 
 /* ---- grouped toolbar: tool buttons, flyout triggers, active states ---- */
@@ -180,28 +181,35 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  height: 34px;
-  min-width: 34px;
-  padding: 0 6px;
+  gap: 0;
+  height: 29px;
+  min-width: 29px;
+  padding: 0 4px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: inherit;
   cursor: pointer;
+}
+.sketch-tool-btn svg,
+.sketch-flyout-trigger svg {
+  width: 17px;
+  height: 17px;
 }
 .sketch-tool-btn:hover,
 .sketch-flyout-trigger:hover {
   background: var(--sketch-hover, rgba(127, 127, 127, 0.14));
 }
-.sketch-tool-btn[aria-pressed='true'] {
+/* `.sketch-editor` prefix raises specificity so host button styles can't leak
+ *  in and override the active state (e.g. hide the icon under a solid fill). */
+.sketch-editor .sketch-tool-btn[aria-pressed='true'] {
   background: var(--sketch-accent, #2563eb);
   color: #fff;
   border-color: var(--sketch-accent, #2563eb);
 }
 /* Menu trigger that is "active" (e.g. an open menu / live state): soft tint. */
-.sketch-flyout-trigger[aria-pressed='true'],
-.sketch-flyout-trigger[aria-expanded='true'] {
+.sketch-editor .sketch-flyout-trigger[aria-pressed='true'],
+.sketch-editor .sketch-flyout-trigger[aria-expanded='true'] {
   background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
   border-color: var(--sketch-accent, #2563eb);
   color: var(--sketch-accent, #2563eb);
@@ -211,9 +219,9 @@
   margin-left: -1px;
 }
 .sketch-tool-swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
   border: 1px solid rgba(127, 127, 127, 0.45);
 }
 
@@ -225,13 +233,13 @@
 /* Desktop: a compact popover above (the toolbar can be top or bottom). */
 .sketch-flyout-pop {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 5px);
   left: 0;
   z-index: 40;
-  min-width: 184px;
-  max-width: 280px;
-  padding: 6px;
-  border-radius: 11px;
+  min-width: 172px;
+  max-width: 270px;
+  padding: 5px;
+  border-radius: 10px;
   background: var(--sketch-surface, #fff);
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.25));
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
@@ -247,21 +255,21 @@
 .sketch-menu-item {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
   text-align: left;
-  padding: 8px 9px;
+  padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: var(--sketch-foreground, #1f2937);
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: pointer;
 }
 .sketch-menu-item:hover {
   background: var(--sketch-hover, rgba(127, 127, 127, 0.12));
 }
-.sketch-menu-item[aria-pressed='true'] {
+.sketch-editor .sketch-menu-item[aria-pressed='true'] {
   background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
   border-color: var(--sketch-accent, #2563eb);
   color: var(--sketch-accent, #2563eb);
@@ -289,12 +297,12 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 9px;
+  padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: var(--sketch-foreground, #1f2937);
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: pointer;
 }
 .sketch-flyout-row:hover {
@@ -434,15 +442,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  height: 30px;
-  padding: 0 8px;
+  min-width: 29px;
+  height: 29px;
+  padding: 0 6px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
 }
 
@@ -631,6 +639,11 @@
 }
 
 .sketch-done {
+  gap: 5px;
+  height: 29px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
   background: var(--sketch-accent, #2563eb) !important;
   color: #fff !important;
 }
@@ -1172,7 +1185,7 @@
   font-size: 13px;
 }
 
-.sketch-segmented button[aria-pressed='true'] {
+.sketch-editor .sketch-segmented button[aria-pressed='true'] {
   background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
   border-color: var(--sketch-accent, #2563eb);
   color: var(--sketch-accent, #2563eb);

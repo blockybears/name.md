@@ -74,7 +74,8 @@ body {
   gap: 8px;
 }
 
-.demo button {
+/* Scoped to the demo header so it never leaks into the sketch editor. */
+.demo .controls button {
   border: 1px solid var(--app-border);
   background: var(--app-panel);
   color: var(--app-text);
@@ -83,7 +84,7 @@ body {
   cursor: pointer;
 }
 
-.demo button[aria-pressed='true'] {
+.demo .controls button[aria-pressed='true'] {
   border-color: var(--sketch-accent);
   color: var(--sketch-accent);
 }
