@@ -813,6 +813,14 @@ test('csvToGantt chains blank starts and scales durations', () => {
   assert.deepEqual(build.deps, ['Design'])
 })
 
+test('scene round-trips a saved canvas height', () => {
+  const scene = createScene({ canvasHeight: 640 })
+  assert.equal(scene.canvasHeight, 640)
+  assert.equal(parseScene(serializeScene(scene)).canvasHeight, 640)
+  // A bogus value is dropped.
+  assert.equal(parseScene(JSON.stringify({ canvasHeight: -5 })).canvasHeight, undefined)
+})
+
 test('scene with diagrams: render includes them, round-trips, and flattens', () => {
   const { data } = mermaidToData('gantt\n dateFormat YYYY-MM-DD\n A :a1, 2024-01-01, 6d\n B :after a1, 4d')!
   const instance = { id: 'd1', seed: 7, x: 100, y: 100, style: 'clean' as const, view: 'gantt' as const, data }

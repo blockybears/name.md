@@ -56,6 +56,7 @@ export function parseScene(text: string): Scene {
     background: coerceColor(data.background) ?? token('canvas'),
     defaultStyle: coerceStyle(data.defaultStyle),
     defaultView: coerceRect(data.defaultView),
+    canvasHeight: typeof data.canvasHeight === 'number' && data.canvasHeight > 0 ? data.canvasHeight : undefined,
   })
 }
 

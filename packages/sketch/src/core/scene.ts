@@ -22,6 +22,7 @@ export function createScene(partial: Partial<Scene> = {}): Scene {
     background: partial.background ?? token('canvas'),
     defaultStyle: partial.defaultStyle ?? 'soft',
     defaultView: partial.defaultView ?? null,
+    canvasHeight: partial.canvasHeight,
   }
 }
 

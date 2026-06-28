@@ -166,4 +166,6 @@ export interface Scene {
   defaultStyle: DrawStyle
   /** Saved framing used by the read-only view; null = fit to content. */
   defaultView: Rect | null
+  /** Saved canvas height (px) — set by the resize handle; used by edit + read. */
+  canvasHeight?: number
 }

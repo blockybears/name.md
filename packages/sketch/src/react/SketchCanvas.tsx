@@ -1294,7 +1294,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
-  }, [])
+    // Persist the height on the scene (so it survives read mode / re-opening),
+    // then drop the live override so the scene value is the source of truth.
+    const h = rootRef.current?.getBoundingClientRect().height
+    if (h && Math.round(h) !== Math.round(scene.canvasHeight ?? 0)) {
+      commit({ ...scene, canvasHeight: Math.round(h) })
+    }
+    setEditorHeight(null)
+  }, [commit, scene])
 
   const clearCanvas = useCallback(() => {
     if (scene.elements.length === 0 && !(scene.diagrams && scene.diagrams.length)) {
@@ -1497,7 +1504,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   }, [camera, draw.fontSize, editingElement, editingText])
 
   return (
-    <div ref={rootRef} className={`sketch-editor ${className ?? ''}`} style={{ ...style, height: editorHeight ?? style?.height }} onPaste={onPaste}>
+    <div ref={rootRef} className={`sketch-editor ${className ?? ''}`} style={{ ...style, height: editorHeight ?? scene.canvasHeight ?? style?.height }} onPaste={onPaste}>
       <Toolbar
         tool={tool}
         onTool={setTool}

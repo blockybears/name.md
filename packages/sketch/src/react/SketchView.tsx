@@ -21,7 +21,9 @@ export function SketchView({ scene, className, style, options }: SketchViewProps
   return (
     <svg
       className={className}
-      style={{ background: rendered.background, ...style }}
+      // Honour the saved canvas height so read mode matches what was set in the
+      // editor (an explicit style.height from the host still wins).
+      style={{ background: rendered.background, ...(scene.canvasHeight ? { height: scene.canvasHeight } : {}), ...style }}
       viewBox={rendered.viewBox}
       preserveAspectRatio="xMidYMid meet"
       xmlns="http://www.w3.org/2000/svg"
