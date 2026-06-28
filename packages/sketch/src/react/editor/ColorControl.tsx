@@ -39,46 +39,26 @@ export function ColorSwatches({
 
   return (
     <div className="sketch-color-fields">
-      <div className="sketch-swatch-grid">
-        {tokenSwatches.map((swatch) => (
-          <button
-            key={swatch.token}
-            type="button"
-            className="sketch-swatch-cell"
-            aria-pressed={colorEquals(value, token(swatch.token))}
-            style={{ background: `var(--sketch-${swatch.token}, #888)` }}
-            title={swatch.label}
-            onClick={() => pick(token(swatch.token))}
+      {/* Primary control: the current colour opens the OS colour picker. */}
+      <div className="sketch-color-main">
+        <label
+          className="sketch-color-pick"
+          style={{ background: colorPreview(value) }}
+          data-checkerboard={isTransparent(value) ? 'true' : undefined}
+          title="Pick a colour"
+        >
+          <input
+            type="color"
+            value={/^#([0-9a-f]{6})$/i.test(hex) ? hex : '#1971c2'}
+            onChange={(event) => {
+              setHex(event.target.value)
+              pick(literal(event.target.value))
+            }}
           />
-        ))}
-      </div>
-      <div className="sketch-swatch-grid">
-        {presetColors
-          .filter((color) => allowTransparent || color !== 'transparent')
-          .map((color) => (
-            <button
-              key={color}
-              type="button"
-              className="sketch-swatch-cell"
-              aria-pressed={colorEquals(value, literal(color))}
-              style={{ background: color === 'transparent' ? 'transparent' : color }}
-              data-checkerboard={color === 'transparent' ? 'true' : undefined}
-              title={color}
-              onClick={() => pick(literal(color))}
-            />
-          ))}
-      </div>
-      <div className="sketch-color-custom">
-        <input
-          type="color"
-          value={/^#([0-9a-f]{6})$/i.test(hex) ? hex : '#1971c2'}
-          onChange={(event) => {
-            setHex(event.target.value)
-            pick(literal(event.target.value))
-          }}
-        />
+        </label>
         <input
           type="text"
+          className="sketch-color-hex"
           value={hex}
           spellCheck={false}
           onChange={(event) => setHex(event.target.value)}
@@ -93,6 +73,34 @@ export function ColorSwatches({
             }
           }}
         />
+      </div>
+      {/* Quick-access colours: theme tokens + presets, condensed to one line. */}
+      <div className="sketch-quick-row">
+        {tokenSwatches.map((swatch) => (
+          <button
+            key={swatch.token}
+            type="button"
+            className="sketch-quick-cell"
+            aria-pressed={colorEquals(value, token(swatch.token))}
+            style={{ background: `var(--sketch-${swatch.token}, #888)` }}
+            title={swatch.label}
+            onClick={() => pick(token(swatch.token))}
+          />
+        ))}
+        {presetColors
+          .filter((color) => allowTransparent || color !== 'transparent')
+          .map((color) => (
+            <button
+              key={color}
+              type="button"
+              className="sketch-quick-cell"
+              aria-pressed={colorEquals(value, literal(color))}
+              style={{ background: color === 'transparent' ? 'transparent' : color }}
+              data-checkerboard={color === 'transparent' ? 'true' : undefined}
+              title={color}
+              onClick={() => pick(literal(color))}
+            />
+          ))}
       </div>
     </div>
   )

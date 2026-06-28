@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DiagramKind, DrawStyle } from '../../core'
+import type { DiagramKind } from '../../core'
 import { DIAGRAM_KINDS } from '../../core'
 import { Icon, type IconName } from './Icon'
-import { Segmented, type SegOption } from './Segmented'
 import type { ToolId } from './types'
-
-const chartStyleOptions: SegOption<DrawStyle>[] = [
-  { value: 'clean', icon: 'style-clean', title: 'Straight' },
-  { value: 'soft', icon: 'style-soft', title: 'Soft' },
-  { value: 'sketchy', icon: 'style-sketchy', title: 'Sketched' },
-]
 
 const tools: Array<{ id: ToolId; icon: IconName; title: string; key: string }> = [
   { id: 'select', icon: 'select', title: 'Select', key: 'V' },
@@ -29,8 +22,6 @@ export interface ToolbarProps {
   onImport: (type: 'mermaid' | 'json') => void
   onNewChart: () => void
   onClear: () => void
-  chartStyle: DrawStyle
-  onChartStyle: (style: DrawStyle) => void
   zoom: number
   onZoomIn: () => void
   onZoomOut: () => void
@@ -59,8 +50,6 @@ export function Toolbar({
   onImport,
   onNewChart,
   onClear,
-  chartStyle,
-  onChartStyle,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -147,15 +136,6 @@ export function Toolbar({
             <button type="button" onClick={() => { onImport('json'); setMenuOpen(false) }}>
               <Icon name="import" size={15} /> Import JSON…
             </button>
-            <div className="sketch-dropdown-divider" />
-            <div className="sketch-dropdown-section">
-              <span className="sketch-dropdown-label">Chart style (all charts)</span>
-              <Segmented options={chartStyleOptions} value={chartStyle} onSelect={onChartStyle} />
-            </div>
-            <div className="sketch-dropdown-divider" />
-            <button type="button" className="sketch-dropdown-danger" onClick={() => { onClear(); setMenuOpen(false) }}>
-              <Icon name="delete" size={15} /> Clear canvas
-            </button>
           </div>
         )}
       </div>
@@ -184,49 +164,59 @@ export function Toolbar({
         </button>
       </div>
 
-      <button
-        type="button"
-        className="sketch-icon-btn"
-        aria-label="Alignment snapping"
-        aria-pressed={snapEnabled}
-        title="Snap to alignment guides (magnet)"
-        onClick={onToggleSnap}
-      >
-        <Icon name="snap" />
-      </button>
-      <button
-        type="button"
-        className="sketch-icon-btn"
-        aria-label="Grid"
-        aria-pressed={gridEnabled}
-        title="Show grid and snap to it"
-        onClick={onToggleGrid}
-      >
-        <Icon name="grid" />
-      </button>
-      <button
-        type="button"
-        className="sketch-icon-btn"
-        aria-label="Code view"
-        aria-pressed={codeOpen}
-        title="View / edit as JSON"
-        onClick={onToggleCode}
-      >
-        <Icon name="code" />
-      </button>
-      <button
-        type="button"
-        className="sketch-icon-btn"
-        aria-label="Properties panel"
-        aria-pressed={panelOpen}
-        title="Show / hide properties"
-        onClick={onTogglePanel}
-      >
-        <Icon name="sliders" />
-      </button>
-      <button type="button" className="sketch-icon-btn" aria-label="Set read view" title="Set the framing used when reading" onClick={onSetView}>
-        <Icon name="set-view" />
-      </button>
+      <div className="sketch-tb-divider" />
+
+      <div className="sketch-tb-group">
+        <button
+          type="button"
+          className="sketch-icon-btn"
+          aria-label="Alignment snapping"
+          aria-pressed={snapEnabled}
+          title="Snap to alignment guides (magnet)"
+          onClick={onToggleSnap}
+        >
+          <Icon name="snap" />
+        </button>
+        <button
+          type="button"
+          className="sketch-icon-btn"
+          aria-label="Grid"
+          aria-pressed={gridEnabled}
+          title="Show grid and snap to it"
+          onClick={onToggleGrid}
+        >
+          <Icon name="grid" />
+        </button>
+        <button type="button" className="sketch-icon-btn" aria-label="Set read view" title="Set the framing used when reading" onClick={onSetView}>
+          <Icon name="set-view" />
+        </button>
+        <button
+          type="button"
+          className="sketch-icon-btn"
+          aria-label="Code view"
+          aria-pressed={codeOpen}
+          title="View / edit as JSON"
+          onClick={onToggleCode}
+        >
+          <Icon name="code" />
+        </button>
+        <button
+          type="button"
+          className="sketch-icon-btn"
+          aria-label="Properties panel"
+          aria-pressed={panelOpen}
+          title="Show / hide properties"
+          onClick={onTogglePanel}
+        >
+          <Icon name="sliders" />
+        </button>
+        <button type="button" className="sketch-icon-btn sketch-tb-danger" aria-label="Clear canvas" title="Clear the canvas (undoable)" onClick={onClear}>
+          <Icon name="delete" />
+        </button>
+      </div>
+
+      <div className="sketch-tb-divider" />
+
       {onExit && (
         <button type="button" className="sketch-done" title="Lock — back to read mode" onClick={onExit}>
           <Icon name="lock" size={15} /> Read

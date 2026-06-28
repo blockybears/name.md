@@ -71,6 +71,7 @@ import {
   simplifyPoints,
   unionRects,
   viewBoxForScene,
+  type DrawStyle,
   type ResizeHandle,
 } from '../core'
 import { RenderedScene } from './RenderedScene'
@@ -164,8 +165,9 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
   )
   // Long-press-to-unlock feedback (mobile).
   const [pressing, setPressing] = useState(false)
-  const [readMenuOpen, setReadMenuOpen] = useState(false)
   const pressRef = useRef<{ timer: number; startClient: Point } | null>(null)
+  // Whether Shift is held during the current gesture (rotation snaps to 15°).
+  const shiftRef = useRef(false)
   const cancelLongPress = useCallback(() => {
     if (pressRef.current) {
       clearTimeout(pressRef.current.timer)
@@ -191,6 +193,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
   const [contextMenu, setContextMenu] = useState<{ left: number; top: number; elementId: string } | null>(null)
   const [selectedDiagramId, setSelectedDiagramId] = useState<string | null>(null)
   const [viewMenuOpen, setViewMenuOpen] = useState(false)
+  const [styleMenuOpen, setStyleMenuOpen] = useState(false)
   const [editorHeight, setEditorHeight] = useState<number | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const resizeRef = useRef<{ startY: number; startH: number } | null>(null)
@@ -438,7 +441,12 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
         if (!baseElement) {
           return null
         }
-        const angle = angleToPointer(baseElement, point)
+        let angle = angleToPointer(baseElement, point)
+        if (shiftRef.current) {
+          // Snap to 15° increments (0–360) while Shift is held.
+          const step = Math.PI / 12
+          angle = Math.round(angle / step) * step
+        }
         return {
           ...gesture.base,
           elements: gesture.base.elements.map((element) => (element.id === gesture.elementId ? { ...element, angle } : element)),
@@ -724,6 +732,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
 
   const onPointerMove = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      shiftRef.current = event.shiftKey
       if (pointersRef.current.has(event.pointerId)) {
         pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
       }
@@ -840,6 +849,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
 
   const onPointerUp = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      shiftRef.current = event.shiftKey
       pointersRef.current.delete(event.pointerId)
       if (pointersRef.current.size < 2) {
         pinchRef.current = null
@@ -1301,6 +1311,17 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
     [commit, scene, selectedDiagramId],
   )
 
+  const setSelectedDiagramStyle = useCallback(
+    (chartStyle: DrawStyle) => {
+      if (!selectedDiagramId) {
+        return
+      }
+      commit({ ...scene, diagrams: (scene.diagrams ?? []).map((d) => (d.id === selectedDiagramId ? { ...d, style: chartStyle } : d)) })
+      setStyleMenuOpen(false)
+    },
+    [commit, scene, selectedDiagramId],
+  )
+
   const flattenSelectedDiagram = useCallback(() => {
     if (!selectedDiagramId) {
       return
@@ -1606,21 +1627,6 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
           <button type="button" className="sketch-icon-btn" aria-label="Fullscreen" title="Fullscreen" onClick={toggleFullscreen}>
             <Icon name="fullscreen" />
           </button>
-          <div className="sketch-read-overflow">
-            <button type="button" className="sketch-icon-btn" aria-label="More" aria-expanded={readMenuOpen} title="More" onClick={() => setReadMenuOpen((v) => !v)}>
-              <Icon name="more" />
-            </button>
-            {readMenuOpen && (
-              <div className="sketch-read-menu" role="menu">
-                <button type="button" onClick={() => { setReadMenuOpen(false); setMode('edit') }}>
-                  <Icon name="pencil-edit" size={15} /> Edit sketch
-                </button>
-                <button type="button" onClick={() => { setReadMenuOpen(false); toggleFullscreen() }}>
-                  <Icon name="fullscreen" size={15} /> Fullscreen
-                </button>
-              </div>
-            )}
-          </div>
           <button type="button" className="sketch-read-edit" title="Unlock to edit" onClick={() => setMode('edit')}>
             <Icon name="unlock" size={15} /> Edit
           </button>
@@ -1634,8 +1640,6 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
           onImport={openImport}
           onNewChart={() => setDataEditor({ mode: 'create' })}
           onClear={clearCanvas}
-          chartStyle={scene.diagramStyle ?? draw.style}
-          onChartStyle={(diagramStyle) => commit({ ...scene, diagramStyle })}
           zoom={camera.zoom}
           onZoomIn={() => zoomBy(1.2)}
           onZoomOut={() => zoomBy(1 / 1.2)}
@@ -1886,6 +1890,27 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
                   <Icon name="sliders" /> Edit data
                 </button>
               )}
+              <div className="sketch-diagram-viewas">
+                <button type="button" className="sketch-diagram-btn" onClick={() => setStyleMenuOpen((open) => !open)} aria-expanded={styleMenuOpen} title="Render style for this chart">
+                  <Icon name="style-sketchy" /> Style <Icon name="chevron-down" />
+                </button>
+                {styleMenuOpen && (
+                  <div className="sketch-viewas-menu" role="menu">
+                    {([['clean', 'Straight'], ['soft', 'Soft'], ['sketchy', 'Sketched']] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={(scene.diagramStyle ?? selectedDiagram.style) === value}
+                        className={(scene.diagramStyle ?? selectedDiagram.style) === value ? 'is-active' : undefined}
+                        onClick={() => setSelectedDiagramStyle(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button type="button" className="sketch-diagram-btn" onClick={flattenSelectedDiagram} title="Convert to editable shapes (one-way)">
                 Flatten
               </button>

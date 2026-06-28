@@ -165,11 +165,27 @@
 .sketch-topbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   background: var(--sketch-panel-bg, rgba(250, 250, 250, 0.96));
   flex-wrap: wrap;
+}
+
+/* Group related toolbar buttons; a thin divider separates groups. */
+.sketch-tb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.sketch-tb-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 3px 2px;
+  background: var(--sketch-panel-border, rgba(127, 127, 127, 0.28));
+}
+.sketch-tb-danger:hover {
+  color: #e03131;
 }
 
 .sketch-topbar button {
@@ -990,50 +1006,64 @@
   gap: 8px;
 }
 
-.sketch-swatch-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 5px;
-}
-
-.sketch-swatch-cell {
-  aspect-ratio: 1;
-  border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.4));
-  border-radius: 5px;
-  cursor: pointer;
-  padding: 0;
-}
-
-.sketch-swatch-cell[aria-pressed='true'] {
-  outline: 2px solid var(--sketch-accent, #2563eb);
-  outline-offset: 1px;
-}
-
-.sketch-color-custom {
+/* Primary colour control: a big swatch (opens the OS picker) + hex field. */
+.sketch-color-main {
   display: flex;
   gap: 6px;
   align-items: center;
 }
 
-.sketch-color-custom input[type='color'] {
-  width: 32px;
-  height: 28px;
-  padding: 0;
+.sketch-color-pick {
+  position: relative;
+  width: 40px;
+  height: 30px;
+  flex: 0 0 auto;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.4));
-  border-radius: 5px;
-  background: none;
+  border-radius: 6px;
   cursor: pointer;
+  overflow: hidden;
+}
+.sketch-color-pick input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
 }
 
-.sketch-color-custom input[type='text'] {
+.sketch-color-hex {
   flex: 1;
   width: 100%;
-  height: 28px;
+  height: 30px;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.4));
-  border-radius: 5px;
-  padding: 0 6px;
+  border-radius: 6px;
+  padding: 0 8px;
   background: var(--sketch-control-bg, #fff);
   color: inherit;
   font-family: var(--sketch-mono, monospace);
   font-size: 12px;
+}
+
+/* Quick-access colours, condensed to a single scrollable line. */
+.sketch-quick-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.sketch-quick-cell {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.4));
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+.sketch-quick-cell[aria-pressed='true'] {
+  outline: 2px solid var(--sketch-accent, #2563eb);
+  outline-offset: 1px;
 }
