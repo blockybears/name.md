@@ -45,6 +45,7 @@ import {
   parseDep,
   rescheduleGantt,
   ganttGeometry,
+  smoothPath,
   looksLikeMermaid,
   jsonToElements,
   viewBoxForScene,
@@ -698,6 +699,15 @@ test('ganttFromRows: duration 0 makes a milestone', () => {
   const data = ganttFromRows([{ name: 'Launch', start: '2024-06-01', duration: '0', deps: '', tags: '' }])
   assert.equal(data.tasks[0].startDay, data.tasks[0].endDay)
   assert.ok(data.tasks[0].tags.includes('milestone'))
+})
+
+test('freedraw renders as a smooth bezier path (not straight segments)', () => {
+  const pts = Array.from({ length: 8 }, (_, i) => ({ x: i * 10, y: i % 2 ? 20 : 0 }))
+  const scene = createScene({ elements: [createElement({ type: 'freedraw', x: 0, y: 0, width: 70, height: 20, points: pts, style: 'clean', id: 'f' })] })
+  const svg = sceneToSvgString(scene)
+  assert.ok(svg.includes(' C'), 'freedraw uses cubic curves')
+  assert.equal(smoothPath(pts).startsWith('M'), true)
+  assert.ok((smoothPath(pts).match(/C/g) ?? []).length >= 5)
 })
 
 test('rescheduleGantt shifts dependents when a task moves', () => {

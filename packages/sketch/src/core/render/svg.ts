@@ -1,7 +1,7 @@
 import { viewBoxForScene, rectToViewBox } from '../camera'
 import { resolveColor } from '../color'
 import { sceneElements } from '../diagram'
-import { diamondPath, ellipsePath, polylinePath, rectPath, roundedRectPoints } from './shapes'
+import { diamondPath, ellipsePath, polylinePath, rectPath, roundedRectPoints, smoothPath } from './shapes'
 import {
   ellipsePoints,
   hachureEllipse,
@@ -94,9 +94,10 @@ function cleanOutline(element: SketchElement): string {
       return diamondPath(element.width, element.height)
     case 'polygon':
       return closedPolylinePath(element.points)
+    case 'freedraw':
+      return smoothPath(element.points)
     case 'line':
     case 'arrow':
-    case 'freedraw':
       return polylinePath(element.points)
     default:
       return ''
@@ -132,7 +133,7 @@ function sketchyOutline(element: SketchElement, rng: () => number): string {
     case 'arrow':
       return roughPolyline(element.points, rng, false, roughness)
     case 'freedraw':
-      return polylinePath(element.points)
+      return smoothPath(element.points)
     default:
       return ''
   }

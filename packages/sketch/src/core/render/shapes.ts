@@ -80,3 +80,27 @@ export function polylinePath(points: Point[]): string {
   const [first, ...rest] = points
   return `M${fmt(first.x)} ${fmt(first.y)}` + rest.map((point) => ` L${fmt(point.x)} ${fmt(point.y)}`).join('')
 }
+
+/**
+ * Smooth path through points using a Catmull-Rom spline expressed as cubic
+ * béziers — turns a simplified freehand polyline into a clean flowing curve.
+ */
+export function smoothPath(points: Point[]): string {
+  if (points.length < 3) {
+    return polylinePath(points)
+  }
+  const p = points
+  let d = `M${fmt(p[0].x)} ${fmt(p[0].y)}`
+  for (let i = 0; i < p.length - 1; i += 1) {
+    const p0 = p[i - 1] ?? p[i]
+    const p1 = p[i]
+    const p2 = p[i + 1]
+    const p3 = p[i + 2] ?? p2
+    const c1x = p1.x + (p2.x - p0.x) / 6
+    const c1y = p1.y + (p2.y - p0.y) / 6
+    const c2x = p2.x - (p3.x - p1.x) / 6
+    const c2y = p2.y - (p3.y - p1.y) / 6
+    d += ` C${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(p2.x)} ${fmt(p2.y)}`
+  }
+  return d
+}

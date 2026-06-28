@@ -21,6 +21,7 @@ export interface ToolbarProps {
   onInsertDiagram: (kind: DiagramKind) => void
   onImport: (type: 'mermaid' | 'json') => void
   onNewChart: () => void
+  onClear: () => void
   zoom: number
   onZoomIn: () => void
   onZoomOut: () => void
@@ -48,6 +49,7 @@ export function Toolbar({
   onInsertDiagram,
   onImport,
   onNewChart,
+  onClear,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -133,6 +135,10 @@ export function Toolbar({
             </button>
             <button type="button" onClick={() => { onImport('json'); setMenuOpen(false) }}>
               <Icon name="import" size={15} /> Import JSON…
+            </button>
+            <div className="sketch-dropdown-divider" />
+            <button type="button" className="sketch-dropdown-danger" onClick={() => { onClear(); setMenuOpen(false) }}>
+              <Icon name="delete" size={15} /> Clear canvas
             </button>
           </div>
         )}

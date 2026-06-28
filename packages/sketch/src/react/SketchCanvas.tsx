@@ -150,6 +150,9 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   const [contextMenu, setContextMenu] = useState<{ left: number; top: number; elementId: string } | null>(null)
   const [selectedDiagramId, setSelectedDiagramId] = useState<string | null>(null)
   const [viewMenuOpen, setViewMenuOpen] = useState(false)
+  const [editorHeight, setEditorHeight] = useState<number | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const resizeRef = useRef<{ startY: number; startH: number } | null>(null)
   const [dataEditor, setDataEditor] = useState<{ mode: 'create' | 'edit'; diagramId?: string; initial?: GanttData | SeriesData } | null>(null)
   const [codeOpen, setCodeOpen] = useState(false)
   const [codeText, setCodeText] = useState('')
@@ -859,10 +862,12 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
       }
 
       if (gesture.mode === 'freedraw') {
+        // Simplify to a sparse vector path (the renderer smooths it into a
+        // flowing curve), with the tolerance scaled to the current zoom.
         next = {
           ...next,
           elements: next.elements.map((element) =>
-            element.id === gesture.id && element.type === 'freedraw' ? { ...element, points: simplifyPoints(element.points, 1.2) } : element,
+            element.id === gesture.id && element.type === 'freedraw' ? { ...element, points: simplifyPoints(element.points, 2.2 * scenePerPixel) } : element,
           ),
         }
       }
@@ -1215,6 +1220,35 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     setImportState({ type, text: '', error: null })
   }, [])
 
+  const onResizeDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const h = rootRef.current?.getBoundingClientRect().height ?? 480
+    resizeRef.current = { startY: event.clientY, startH: h }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }, [])
+  const onResizeMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!resizeRef.current) {
+      return
+    }
+    setEditorHeight(Math.max(280, Math.min(4000, resizeRef.current.startH + (event.clientY - resizeRef.current.startY))))
+  }, [])
+  const onResizeUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    resizeRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }, [])
+
+  const clearCanvas = useCallback(() => {
+    if (scene.elements.length === 0 && !(scene.diagrams && scene.diagrams.length)) {
+      return
+    }
+    setSelected([])
+    setSelectedDiagramId(null)
+    // Undoable: a Ctrl+Z brings the work back.
+    commit({ ...scene, elements: [], diagrams: undefined })
+  }, [commit, scene])
+
   const applyImport = useCallback(() => {
     if (!importState) {
       return
@@ -1264,7 +1298,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   )
 
   const fitContent = useCallback(() => {
-    const content = sceneContentBounds(scene.elements)
+    // Frame everything, including unflattened diagram-rendered shapes.
+    const content = sceneContentBounds(flatElements)
     if (!content) {
       return
     }
@@ -1272,7 +1307,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
     const zoom = Math.min(size.width / padded.width, size.height / padded.height, 2)
     const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1
     setCamera({ zoom: safeZoom, x: padded.x - (size.width / safeZoom - padded.width) / 2, y: padded.y - (size.height / safeZoom - padded.height) / 2 })
-  }, [scene.elements, size])
+  }, [flatElements, size])
 
   const setDefaultView = useCallback(() => {
     commit({ ...scene, defaultView: { ...viewRect } })
@@ -1387,13 +1422,14 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
   }, [camera, draw.fontSize, editingElement, editingText])
 
   return (
-    <div className={`sketch-editor ${className ?? ''}`} style={style} onPaste={onPaste}>
+    <div ref={rootRef} className={`sketch-editor ${className ?? ''}`} style={{ ...style, height: editorHeight ?? style?.height }} onPaste={onPaste}>
       <Toolbar
         tool={tool}
         onTool={setTool}
         onInsertDiagram={insertDiagram}
         onImport={openImport}
         onNewChart={() => setDataEditor({ mode: 'create' })}
+        onClear={clearCanvas}
         zoom={camera.zoom}
         onZoomIn={() => zoomBy(1.2)}
         onZoomOut={() => zoomBy(1 / 1.2)}
@@ -1598,7 +1634,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
             </div>
           )}
 
-          {selectedDiagram && diagramRect && (
+          {selectedDiagram && diagramRect && !dataEditor && !importState && (
             <div
               className="sketch-diagram-toolbar"
               style={{
@@ -1611,7 +1647,7 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
                   <Icon name="chart" /> View as <Icon name="chevron-down" />
                 </button>
                 {viewMenuOpen && (
-                  <div className="sketch-diagram-menu" role="menu">
+                  <div className="sketch-viewas-menu" role="menu">
                     {availableViews(selectedDiagram.data).map((view) => (
                       <button
                         key={view.id}
@@ -1687,6 +1723,16 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
           </div>
         </div>
       )}
+
+      <div
+        className="sketch-resize-handle"
+        title="Drag to resize the canvas height"
+        onPointerDown={onResizeDown}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeUp}
+      >
+        <span className="sketch-resize-grip" />
+      </div>
     </div>
   )
 }
