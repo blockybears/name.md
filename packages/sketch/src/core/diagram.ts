@@ -771,7 +771,9 @@ export function sceneElements(scene: Scene): SketchElement[] {
   }
   const out = [...scene.elements]
   for (const instance of scene.diagrams) {
-    out.push(...renderDiagramInstance(instance))
+    // A scene-wide diagramStyle overrides each chart's own style so they can be
+    // flipped straight/sketched globally without flattening.
+    out.push(...renderDiagramInstance(scene.diagramStyle ? { ...instance, style: scene.diagramStyle } : instance))
   }
   return out
 }

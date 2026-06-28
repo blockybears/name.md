@@ -813,6 +813,17 @@ test('csvToGantt chains blank starts and scales durations', () => {
   assert.deepEqual(build.deps, ['Design'])
 })
 
+test('scene.diagramStyle flips all charts straight/sketched (and round-trips)', () => {
+  const { data } = mermaidToData('gantt\n dateFormat YYYY-MM-DD\n A :a1, 2024-01-01, 6d\n B :after a1, 4d')!
+  const instance = { id: 'd1', seed: 7, x: 0, y: 0, style: 'sketchy' as const, view: 'gantt' as const, data }
+  const sketched = sceneToSvgString(createScene({ diagrams: [instance] }))
+  // Global override to 'clean' makes the charts straight (no bezier curves).
+  const straight = sceneToSvgString(createScene({ diagrams: [instance], diagramStyle: 'clean' }))
+  assert.ok(sketched.includes(' C'), 'sketchy chart uses curves')
+  assert.ok(!straight.includes(' C'), 'overridden chart is straight')
+  assert.equal(parseScene(serializeScene(createScene({ diagramStyle: 'clean' }))).diagramStyle, 'clean')
+})
+
 test('scene round-trips a saved canvas height', () => {
   const scene = createScene({ canvasHeight: 640 })
   assert.equal(scene.canvasHeight, 640)

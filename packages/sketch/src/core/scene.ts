@@ -23,6 +23,7 @@ export function createScene(partial: Partial<Scene> = {}): Scene {
     defaultStyle: partial.defaultStyle ?? 'soft',
     defaultView: partial.defaultView ?? null,
     canvasHeight: partial.canvasHeight,
+    diagramStyle: partial.diagramStyle,
   }
 }
 

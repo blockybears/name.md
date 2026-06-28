@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DiagramKind } from '../../core'
+import type { DiagramKind, DrawStyle } from '../../core'
 import { DIAGRAM_KINDS } from '../../core'
 import { Icon, type IconName } from './Icon'
+import { Segmented, type SegOption } from './Segmented'
 import type { ToolId } from './types'
+
+const chartStyleOptions: SegOption<DrawStyle>[] = [
+  { value: 'clean', icon: 'style-clean', title: 'Straight' },
+  { value: 'soft', icon: 'style-soft', title: 'Soft' },
+  { value: 'sketchy', icon: 'style-sketchy', title: 'Sketched' },
+]
 
 const tools: Array<{ id: ToolId; icon: IconName; title: string; key: string }> = [
   { id: 'select', icon: 'select', title: 'Select', key: 'V' },
@@ -22,6 +29,8 @@ export interface ToolbarProps {
   onImport: (type: 'mermaid' | 'json') => void
   onNewChart: () => void
   onClear: () => void
+  chartStyle: DrawStyle
+  onChartStyle: (style: DrawStyle) => void
   zoom: number
   onZoomIn: () => void
   onZoomOut: () => void
@@ -50,6 +59,8 @@ export function Toolbar({
   onImport,
   onNewChart,
   onClear,
+  chartStyle,
+  onChartStyle,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -136,6 +147,11 @@ export function Toolbar({
             <button type="button" onClick={() => { onImport('json'); setMenuOpen(false) }}>
               <Icon name="import" size={15} /> Import JSON…
             </button>
+            <div className="sketch-dropdown-divider" />
+            <div className="sketch-dropdown-section">
+              <span className="sketch-dropdown-label">Chart style (all charts)</span>
+              <Segmented options={chartStyleOptions} value={chartStyle} onSelect={onChartStyle} />
+            </div>
             <div className="sketch-dropdown-divider" />
             <button type="button" className="sketch-dropdown-danger" onClick={() => { onClear(); setMenuOpen(false) }}>
               <Icon name="delete" size={15} /> Clear canvas

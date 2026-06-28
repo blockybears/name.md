@@ -57,6 +57,7 @@ export function parseScene(text: string): Scene {
     defaultStyle: coerceStyle(data.defaultStyle),
     defaultView: coerceRect(data.defaultView),
     canvasHeight: typeof data.canvasHeight === 'number' && data.canvasHeight > 0 ? data.canvasHeight : undefined,
+    diagramStyle: data.diagramStyle === 'clean' || data.diagramStyle === 'soft' || data.diagramStyle === 'sketchy' ? data.diagramStyle : undefined,
   })
 }
 

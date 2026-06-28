@@ -168,4 +168,7 @@ export interface Scene {
   defaultView: Rect | null
   /** Saved canvas height (px) — set by the resize handle; used by edit + read. */
   canvasHeight?: number
+  /** Global render style for structured diagrams (overrides each diagram's own
+   *  style). Lets charts flip between straight/sketched without flattening. */
+  diagramStyle?: DrawStyle
 }

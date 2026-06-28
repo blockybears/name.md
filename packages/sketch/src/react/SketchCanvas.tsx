@@ -1512,6 +1512,8 @@ export function SketchCanvas({ scene: initialScene, onChange, onExit, className,
         onImport={openImport}
         onNewChart={() => setDataEditor({ mode: 'create' })}
         onClear={clearCanvas}
+        chartStyle={scene.diagramStyle ?? draw.style}
+        onChartStyle={(diagramStyle) => commit({ ...scene, diagramStyle })}
         zoom={camera.zoom}
         onZoomIn={() => zoomBy(1.2)}
         onZoomOut={() => zoomBy(1 / 1.2)}
