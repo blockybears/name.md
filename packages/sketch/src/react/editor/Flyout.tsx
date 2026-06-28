@@ -13,6 +13,9 @@ export interface FlyoutProps {
   /** Render the trigger as a primary tool button (blue-filled when active). */
   tool?: boolean
   className?: string
+  /** Desktop popover edge alignment (default 'left'). Use 'right' for triggers
+   *  near the right edge so the menu doesn't spill off-canvas. */
+  align?: 'left' | 'right'
   /** Content; receives a `close` callback so options can dismiss the menu. */
   children: ReactNode | ((close: () => void) => ReactNode)
 }
@@ -21,7 +24,7 @@ export interface FlyoutProps {
  * Responsive menu: a compact popover on desktop, a bottom sheet on mobile.
  * Closes on outside click (desktop) or backdrop tap (mobile).
  */
-export function Flyout({ trigger, title, active, tool, className, children }: FlyoutProps) {
+export function Flyout({ trigger, title, active, tool, className, align = 'left', children }: FlyoutProps) {
   const [open, setOpen] = useState(false)
   const mobile = useIsMobile()
   const ref = useRef<HTMLDivElement | null>(null)
@@ -74,7 +77,7 @@ export function Flyout({ trigger, title, active, tool, className, children }: Fl
               document.body,
             )
           : (
-              <div className="sketch-flyout-pop" role="menu">
+              <div className={`sketch-flyout-pop ${align === 'right' ? 'align-right' : ''}`} role="menu">
                 {body}
               </div>
             ))}

@@ -236,13 +236,17 @@
   top: calc(100% + 5px);
   left: 0;
   z-index: 40;
-  min-width: 172px;
-  max-width: 270px;
-  padding: 5px;
+  min-width: 168px;
+  max-width: 260px;
+  padding: 4px;
   border-radius: 10px;
   background: var(--sketch-surface, #fff);
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.25));
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
+}
+.sketch-flyout-pop.align-right {
+  left: auto;
+  right: 0;
 }
 
 /* Menu lists + items */
@@ -250,21 +254,25 @@
 .sketch-style-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
 }
 .sketch-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   width: 100%;
   text-align: left;
-  padding: 6px 8px;
+  padding: 5px 7px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--sketch-foreground, #1f2937);
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: pointer;
+}
+.sketch-menu-item svg {
+  width: 15px;
+  height: 15px;
 }
 .sketch-menu-item:hover {
   background: var(--sketch-hover, rgba(127, 127, 127, 0.12));
@@ -278,16 +286,16 @@
   color: #e03131;
 }
 .sketch-menu-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--sketch-muted, #6b7280);
-  padding: 4px 9px 2px;
+  padding: 3px 7px 1px;
 }
 .sketch-menu-divider {
   height: 1px;
-  margin: 4px 4px;
+  margin: 3px 4px;
   background: var(--sketch-panel-border, rgba(127, 127, 127, 0.22));
 }
 
@@ -297,12 +305,12 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 6px 8px;
+  padding: 5px 7px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--sketch-foreground, #1f2937);
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: pointer;
 }
 .sketch-flyout-row:hover {
@@ -339,16 +347,16 @@
   transform: rotate(90deg);
 }
 .sketch-row-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
   border: 1px solid rgba(127, 127, 127, 0.45);
 }
 .sketch-style-seg {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 5px 4px;
+  gap: 4px;
+  padding: 4px 4px;
 }
 .sketch-style-seg input[type='range'] {
   width: 100%;
@@ -1163,7 +1171,7 @@
 }
 
 .sketch-prop-label {
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--sketch-muted, #6b7280);
@@ -1176,13 +1184,17 @@
 
 .sketch-segmented button {
   flex: 1;
-  height: 28px;
+  height: 25px;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   border-radius: 6px;
   background: var(--sketch-control-bg, rgba(255, 255, 255, 0.6));
   color: inherit;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
+}
+.sketch-segmented button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .sketch-editor .sketch-segmented button[aria-pressed='true'] {

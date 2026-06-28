@@ -137,7 +137,7 @@ export function Toolbar(props: ToolbarProps) {
 
       <div className="sketch-topbar-spacer" />
 
-      <Flyout title="View" trigger={<Icon name="magnify" />}>
+      <Flyout title="View" align="right" trigger={<Icon name="magnify" />}>
         <div className="sketch-menu-list">
           <div className="sketch-style-seg">
             <span className="sketch-prop-label">Zoom</span>
@@ -152,7 +152,7 @@ export function Toolbar(props: ToolbarProps) {
         </div>
       </Flyout>
 
-      <Flyout title="More" trigger={<Icon name="more" />}>
+      <Flyout title="More" align="right" trigger={<Icon name="more" />}>
         {(close) => (
           <div className="sketch-menu-list">
             <MenuItem icon="undo" label="Undo" onClick={props.onUndo} />
