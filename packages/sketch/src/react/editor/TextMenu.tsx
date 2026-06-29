@@ -7,10 +7,10 @@ import { Segmented, type SegOption } from './Segmented'
 import type { DrawState } from './types'
 
 const fontSizeOptions: SegOption<number>[] = [
-  { value: 5, label: 'XS', title: 'Extra small' },
-  { value: 7, label: 'S', title: 'Small' },
-  { value: 11, label: 'M', title: 'Medium' },
-  { value: 18, label: 'L', title: 'Large' },
+  { value: 7, label: 'XS', title: 'Extra small' },
+  { value: 12, label: 'S', title: 'Small' },
+  { value: 18, label: 'M', title: 'Medium' },
+  { value: 23, label: 'L', title: 'Large' },
   { value: 28, label: 'XL', title: 'Extra large' },
 ]
 const fontFamilyOptions: SegOption<FontFamily>[] = [
