@@ -1444,6 +1444,32 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
     setCamera({ zoom: safeZoom, x: padded.x - (size.width / safeZoom - padded.width) / 2, y: padded.y - (size.height / safeZoom - padded.height) / 2 })
   }, [flatElements, size])
 
+  /** Lock to read mode: close any edit-only views (JSON/data/import) and return
+   *  to the saved read framing so it always shows the drawing. The reframe is
+   *  deferred (below) until the canvas is visible again with a valid size. */
+  const reframeOnReadRef = useRef(false)
+  const exitToRead = useCallback(() => {
+    setCodeOpen(false)
+    setDataEditor(null)
+    setImportState(null)
+    setReadPan(false)
+    setViewMenuOpen(false)
+    setStyleMenuOpen(false)
+    reframeOnReadRef.current = true
+    setMode('read')
+  }, [setMode])
+  useEffect(() => {
+    if (mode !== 'read' || !reframeOnReadRef.current || size.width <= 1) {
+      return
+    }
+    reframeOnReadRef.current = false
+    const target = scene.defaultView ?? viewBoxForScene(scene)
+    const padded = scene.defaultView ? target : { x: target.x - 24, y: target.y - 24, width: target.width + 48, height: target.height + 48 }
+    const zoom = Math.min(size.width / padded.width, size.height / padded.height, 2)
+    const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1
+    setCamera({ zoom: safeZoom, x: padded.x - (size.width / safeZoom - padded.width) / 2, y: padded.y - (size.height / safeZoom - padded.height) / 2 })
+  }, [mode, size, scene])
+
   const setDefaultView = useCallback(() => {
     commit({ ...scene, defaultView: { ...viewRect } })
   }, [commit, scene, viewRect])
@@ -1655,10 +1681,10 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
           showText={textActive}
           showLinePlacement={linePlacementActive}
           onDrawChange={onDrawChange}
-          onExit={() => setMode('read')}
+          onExit={exitToRead}
         />
       )}
-      {codeOpen && (
+      {!readOnly && codeOpen && (
         <div className="sketch-code-view">
           <div className="sketch-code-bar">
             <span>Scene JSON</span>
@@ -1682,7 +1708,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
           />
         </div>
       )}
-      <div className="sketch-body" hidden={codeOpen}>
+      <div className="sketch-body" hidden={!readOnly && codeOpen}>
         <div ref={containerRef} className={`sketch-canvas ${className ?? ''}`}>
           <svg
             ref={svgRef}
