@@ -362,18 +362,12 @@
   gap: 2px;
 }
 
-/* Mobile: move the edit toolbar to the bottom (thumb-reachable); flyouts open
- *  as bottom sheets. A read bar (if shown) stays on top. */
+/* Mobile: the toolbar stays at the top (clear of the Android nav bar) and
+ *  scrolls horizontally; flyouts open as bottom sheets. */
 @media (max-width: 639px) {
-  .sketch-editor.is-edit .sketch-topbar {
-    order: 5;
-    border-top: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
-    border-bottom: none;
+  .sketch-editor .sketch-topbar {
     flex-wrap: nowrap;
     overflow-x: auto;
-  }
-  .sketch-editor.is-edit .sketch-body {
-    order: 1;
   }
   .sketch-resize-handle {
     display: none;
@@ -382,6 +376,19 @@
   .sketch-flyout-pop {
     min-width: 220px;
   }
+}
+
+/* Fullscreen on a device draws edge-to-edge behind the system bars; inset the
+ *  content by the safe areas so the toolbars stay reachable, and fill the
+ *  reserved strips so they read as part of the (dark) system bars. */
+.sketch-editor:fullscreen,
+.sketch-editor:-webkit-full-screen {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  background: var(--sketch-canvas, #000);
 }
 .sketch-tb-divider {
   width: 1px;
