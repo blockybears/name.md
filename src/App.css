@@ -343,6 +343,11 @@ input {
   color: var(--text);
   background: transparent;
   font-weight: 650;
+  /* Long labels were wrapping and the wrapped line inherited a centered
+   *  text-align; keep items on one line and left-aligned (the menu auto-grows
+   *  to fit, and is clamped on-screen). */
+  text-align: left;
+  white-space: nowrap;
 }
 
 .toolbar-menu button span {
