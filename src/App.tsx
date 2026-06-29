@@ -58,6 +58,7 @@ import type { Editor } from '@tiptap/react'
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -202,6 +203,22 @@ function ToolbarDropdown({
   setOpenMenu,
 }: ToolbarDropdownProps) {
   const openMenuActive = openMenu === id
+  const menuRef = useRef<HTMLDivElement>(null)
+  // The menu opens left-aligned to its button; clamp it leftward if it would
+  // run off the right edge of the viewport.
+  const [shift, setShift] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!openMenuActive || !menuRef.current) {
+      setShift(0)
+      return
+    }
+    const margin = 8
+    const rect = menuRef.current.getBoundingClientRect()
+    const overflow = rect.right - shift - (window.innerWidth - margin)
+    setShift(overflow > 0 ? -overflow : 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openMenuActive])
 
   return (
     <div className="toolbar-menu-control">
@@ -220,7 +237,12 @@ function ToolbarDropdown({
         <ChevronDown aria-hidden="true" size={13} strokeWidth={2.2} />
       </button>
       {openMenuActive && (
-        <div className={menuClassName ? `toolbar-menu ${menuClassName}` : 'toolbar-menu'} role="menu">
+        <div
+          ref={menuRef}
+          className={menuClassName ? `toolbar-menu ${menuClassName}` : 'toolbar-menu'}
+          role="menu"
+          style={shift ? { marginLeft: shift } : undefined}
+        >
           {children}
         </div>
       )}
