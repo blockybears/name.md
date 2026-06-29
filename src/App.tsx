@@ -72,6 +72,7 @@ import './App.css'
 import { AppDialogHost } from './dialogs/AppDialogs'
 import { useAppDialogs } from './dialogs/useAppDialogs'
 import { getStarterMarkdown, MarkdownEditor } from './editor/MarkdownEditor'
+import { setSketchDeleteConfirmer } from './editor/sketchDrawing'
 import { normalizeHeadingId, sanitizeFootnoteLabel } from './editor/extendedMarkdown'
 import {
   configureGitHubProvider,
@@ -621,6 +622,21 @@ function App() {
   const startupFileLoadedRef = useRef(false)
   const lastDevicePollAtRef = useRef(0)
   const { dialog, dialogs, resolveDialog } = useAppDialogs()
+
+  // Confirm before a whole drawing is deleted from the document (the canvas's
+  // own Delete still removes only the selected item without a prompt).
+  useEffect(() => {
+    setSketchDeleteConfirmer(() =>
+      dialogs.requestConfirmation({
+        title: 'NAME.md',
+        message: 'Did you mean to delete this drawing?',
+        confirmLabel: 'Delete',
+        cancelLabel: 'Cancel',
+        danger: true,
+      }),
+    )
+    return () => setSketchDeleteConfirmer(null)
+  }, [dialogs])
 
   const mobile = useIsMobileViewport()
   const dirty = markdown !== savedMarkdown

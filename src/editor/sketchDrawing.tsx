@@ -1,10 +1,48 @@
 /* eslint-disable react-refresh/only-export-components */
-import { Node, mergeAttributes } from '@tiptap/core'
+import { Node, mergeAttributes, type Editor } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react'
+import { NodeSelection, type EditorState } from '@tiptap/pm/state'
 import { Suspense, lazy, useCallback, useMemo } from 'react'
 import { parseScene, serializeScene, type Scene } from '@namemd/sketch'
 import { SketchView } from '@namemd/sketch/react'
 import { fencedBlockMarkdown } from './fencedBlock'
+
+// The host wires a confirmer (e.g. a styled dialog) so deleting a whole drawing
+// from the surrounding document asks first. Returns true to proceed.
+let deleteConfirmer: (() => Promise<boolean>) | null = null
+export function setSketchDeleteConfirmer(confirmer: (() => Promise<boolean>) | null) {
+  deleteConfirmer = confirmer
+}
+
+/** The start position of a sketchDrawing node that this delete direction would
+ *  remove (node-selected, or the adjacent top-level block), else null. */
+function sketchDeletePos(state: EditorState, dir: 'backward' | 'forward'): number | null {
+  const { selection, doc } = state
+  if (selection instanceof NodeSelection && selection.node.type.name === 'sketchDrawing') {
+    return selection.from
+  }
+  if (!selection.empty) {
+    return null
+  }
+  const { $from } = selection
+  if ($from.depth < 1) {
+    return null
+  }
+  if (dir === 'backward') {
+    if ($from.parentOffset !== 0) {
+      return null
+    }
+    const before = $from.before(1)
+    const node = before > 0 ? doc.resolve(before).nodeBefore : null
+    return node?.type.name === 'sketchDrawing' ? before - node.nodeSize : null
+  }
+  if ($from.parentOffset !== $from.parent.content.size) {
+    return null
+  }
+  const after = $from.after(1)
+  const node = doc.resolve(after).nodeAfter
+  return node?.type.name === 'sketchDrawing' ? after : null
+}
 
 // The interactive canvas loads from a dedicated subpath so it code-splits out of
 // the main bundle; the lightweight SketchView renders while that chunk loads.
@@ -95,6 +133,29 @@ export const SketchDrawing = Node.create({
   },
 
   ...fencedBlockMarkdown('sketchDrawing', 'sketch'),
+
+  // Deleting a whole drawing from the document asks for confirmation first (the
+  // canvas's own Delete still removes only the selected item). With no confirmer
+  // wired, the default deletion is left untouched.
+  addKeyboardShortcuts() {
+    const guard = (dir: 'backward' | 'forward') => ({ editor }: { editor: Editor }) => {
+      const pos = sketchDeletePos(editor.state, dir)
+      if (pos == null || !deleteConfirmer) {
+        return false
+      }
+      void deleteConfirmer().then((ok) => {
+        if (!ok) {
+          return
+        }
+        const node = editor.state.doc.nodeAt(pos)
+        if (node?.type.name === 'sketchDrawing') {
+          editor.view.dispatch(editor.state.tr.delete(pos, pos + node.nodeSize))
+        }
+      })
+      return true
+    }
+    return { Backspace: guard('backward'), Delete: guard('forward') }
+  },
 
   addNodeView() {
     // Tell ProseMirror to ignore DOM events inside the canvas: it never
