@@ -1,6 +1,6 @@
 {
   "name": "@namemd/sketch",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Theme-aware hand-drawn vector drawing engine (framework-agnostic core + React wrapper).",
