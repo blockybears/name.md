@@ -802,7 +802,7 @@
 
 /* Data editor (author a chart from typed/pasted numbers). */
 .sketch-data-modal {
-  width: min(680px, 94vw);
+  width: min(840px, 95vw);
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -862,6 +862,11 @@
   border-collapse: collapse;
   font-size: 13px;
 }
+/* The gantt grid has more columns than fit; keep them usable and let the wrap
+ *  scroll horizontally instead of crushing cells. */
+.sketch-data-grid--gantt {
+  min-width: 880px;
+}
 .sketch-data-grid th {
   position: sticky;
   top: 0;
@@ -874,6 +879,7 @@
   background: var(--sketch-surface, #fff);
   padding: 8px 8px 6px;
   border-bottom: 1px solid rgba(127, 127, 127, 0.22);
+  white-space: nowrap;
 }
 .sketch-data-grid td {
   padding: 0;
@@ -909,6 +915,98 @@
 }
 .sketch-data-del:hover {
   color: #e03131;
+}
+
+/* Selectable tag chips (Tags column) */
+.sketch-tagcell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 6px;
+}
+.sketch-tagchip {
+  padding: 3px 9px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sketch-muted, #6b7280);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sketch-tagchip[aria-pressed='true'] {
+  background: var(--sketch-accent-soft, color-mix(in srgb, var(--sketch-accent, #2563eb) 16%, transparent));
+  border-color: var(--sketch-accent, #2563eb);
+  color: var(--sketch-accent, #2563eb);
+}
+
+/* Selectable dependency editor (After column) */
+.sketch-depcell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 6px;
+}
+.sketch-dep-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.sketch-data-grid .sketch-dep-task {
+  flex: 1;
+  min-width: 96px;
+}
+.sketch-data-grid .sketch-dep-type {
+  flex: none;
+  width: 56px;
+}
+.sketch-data-grid select {
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 6px;
+  background: var(--sketch-control-bg, var(--sketch-surface, #fff));
+  color: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.sketch-data-grid .sketch-dep-lag {
+  flex: none;
+  width: 46px;
+  height: 28px;
+  padding: 0 5px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 6px;
+  text-align: center;
+}
+.sketch-dep-del {
+  flex: none;
+  width: 22px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--sketch-muted, #9ca3af);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sketch-dep-del:hover {
+  color: #e03131;
+}
+.sketch-dep-add {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border: 1px dashed rgba(127, 127, 127, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sketch-accent, #2563eb);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sketch-dep-add:hover {
+  background: rgba(127, 127, 127, 0.08);
 }
 
 .sketch-data-addrow {

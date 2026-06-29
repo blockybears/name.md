@@ -30,6 +30,105 @@ export interface DataEditorProps {
 const emptyGanttRow = (): GanttRow => ({ name: '', start: '', duration: '', deps: '', tags: '', progress: '' })
 const emptySeriesRow = (): SeriesRow => ({ label: '', value: '' })
 
+// Styling tags the renderer understands — offered as toggles so they can't be
+// mistyped. (Milestone is set via a 0 duration, not here.)
+const KNOWN_TAGS = [
+  { id: 'crit', label: 'Critical' },
+  { id: 'done', label: 'Done' },
+] as const
+
+/** Tags as toggle chips; any unrecognised tags on the row are preserved. */
+function TagCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const set = new Set(value.split(',').map((s) => s.trim()).filter(Boolean))
+  const toggle = (id: string) => {
+    const next = new Set(set)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    onChange([...next].join(', '))
+  }
+  return (
+    <div className="sketch-tagcell">
+      {KNOWN_TAGS.map((t) => (
+        <button key={t.id} type="button" className="sketch-tagchip" aria-pressed={set.has(t.id)} onClick={() => toggle(t.id)}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+type DepTypeId = 'FS' | 'SS' | 'FF' | 'SF'
+const DEP_TYPES: Array<{ id: DepTypeId; label: string }> = [
+  { id: 'FS', label: 'FS · finish → start' },
+  { id: 'SS', label: 'SS · start → start' },
+  { id: 'FF', label: 'FF · finish → finish' },
+  { id: 'SF', label: 'SF · start → finish' },
+]
+type DepSpec = { task: string; type: DepTypeId; lag: string }
+
+function parseDeps(value: string): DepSpec[] {
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((spec) => {
+      const m = spec.match(/^(.*?)(?::(FS|SS|FF|SF))?\s*([+-].*)?$/i)
+      if (!m) {
+        return { task: spec, type: 'FS', lag: '' }
+      }
+      return { task: (m[1] || '').trim(), type: (m[2]?.toUpperCase() as DepTypeId) || 'FS', lag: (m[3] || '').replace(/\s+/g, '') }
+    })
+}
+function serializeDeps(specs: DepSpec[]): string {
+  return specs
+    .filter((s) => s.task)
+    .map((s) => `${s.task}${s.type !== 'FS' ? `:${s.type}` : ''}${s.lag}`)
+    .join(', ')
+}
+
+/** Dependencies as selectable rows (predecessor + link type + lag) so task
+ *  names and FS/SS/FF/SF sequence types can't be mistyped. */
+function DepCell({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
+  const specs = parseDeps(value)
+  const update = (next: DepSpec[]) => onChange(serializeDeps(next))
+  const optionsFor = (task: string) => (task && !options.includes(task) ? [task, ...options] : options)
+
+  return (
+    <div className="sketch-depcell">
+      {specs.map((spec, i) => (
+        <div className="sketch-dep-row" key={i}>
+          <select className="sketch-dep-task" value={spec.task} onChange={(e) => update(specs.map((x, j) => (j === i ? { ...x, task: e.target.value } : x)))}>
+            {optionsFor(spec.task).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <select className="sketch-dep-type" value={spec.type} title={DEP_TYPES.find((t) => t.id === spec.type)?.label} onChange={(e) => update(specs.map((x, j) => (j === i ? { ...x, type: e.target.value as DepTypeId } : x)))}>
+            {DEP_TYPES.map((t) => (
+              <option key={t.id} value={t.id} title={t.label}>
+                {t.id}
+              </option>
+            ))}
+          </select>
+          <input className="sketch-dep-lag" value={spec.lag} placeholder="+0d" onChange={(e) => update(specs.map((x, j) => (j === i ? { ...x, lag: e.target.value } : x)))} />
+          <button type="button" className="sketch-dep-del" aria-label="Remove dependency" onClick={() => update(specs.filter((_, j) => j !== i))}>
+            ×
+          </button>
+        </div>
+      ))}
+      {options.length > 0 && (
+        <button type="button" className="sketch-dep-add" onClick={() => update([...specs, { task: options[0], type: 'FS', lag: '' }])}>
+          + After…
+        </button>
+      )}
+    </div>
+  )
+}
+
 function ganttToRows(data: GanttData): GanttRow[] {
   return data.tasks.map((task, i) => {
     // A blank-start row gets an implicit "follows previous row" dependency; hide
@@ -140,7 +239,7 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
 
         <div className="sketch-data-grid-wrap">
           {kind === 'gantt' ? (
-            <table className="sketch-data-grid">
+            <table className="sketch-data-grid sketch-data-grid--gantt">
               <thead>
                 <tr>
                   <th>Task</th>
@@ -158,9 +257,9 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
                     <td><input value={row.name} placeholder="Task name" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'name', e.target.value)} /></td>
                     <td><input value={row.start} placeholder="2024-05-01 09:00" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'start', e.target.value)} /></td>
                     <td><input className="sketch-data-num" value={row.duration} placeholder="5d / 2h / 0" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'duration', e.target.value)} /></td>
-                    <td><input value={row.deps} placeholder="Task, Other:SS+1d" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'deps', e.target.value)} /></td>
+                    <td><DepCell value={row.deps} options={ganttRows.filter((_, j) => j !== i).map((r) => r.name.trim()).filter(Boolean)} onChange={(v) => editGantt(i, 'deps', v)} /></td>
                     <td><input className="sketch-data-num sketch-data-pct" value={row.progress ?? ''} placeholder="0" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'progress', e.target.value)} /></td>
-                    <td><input value={row.tags} placeholder="crit, done…" onKeyDown={onRowKeyDown} onChange={(e) => editGantt(i, 'tags', e.target.value)} /></td>
+                    <td><TagCell value={row.tags} onChange={(v) => editGantt(i, 'tags', v)} /></td>
                     <td><button type="button" className="sketch-data-del" aria-label="Remove row" onClick={() => removeGantt(i)}>×</button></td>
                   </tr>
                 ))}
@@ -191,8 +290,8 @@ export function DataEditor({ mode, initial, onApply, onClose }: DataEditorProps)
           </button>
           {kind === 'gantt' && (
             <p className="sketch-data-hint">
-              Blank start → follows previous task. Units: <code>m h d w mo</code>. Milestone = <code>0</code>. % = progress.
-              Links: <code>Task</code>, <code>Task+2d</code> (lag), <code>Task:SS</code>/<code>FF</code>/<code>SF</code>.
+              Blank start → follows previous task. Units: <code>m h d w mo</code>. Milestone = <code>0</code> duration. % = progress.
+              <em>After</em> picks a predecessor, link type (FS/SS/FF/SF) and optional lag (e.g. <code>+2d</code>).
             </p>
           )}
         </div>
