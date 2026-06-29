@@ -121,16 +121,16 @@ export function Toolbar(props: ToolbarProps) {
         <button type="button" className="sketch-tool-btn" aria-label="Text" aria-pressed={tool === 'text'} title="Text tool (T)" onClick={() => onTool('text')}>
           <Icon name="text" />
         </button>
-
-        <Flyout title="Text settings" trigger={<span className="sketch-tool-aa">Aa</span>}>
-          <TextMenu draw={draw} showLinePlacement={props.showLinePlacement} onChange={props.onDrawChange} />
-        </Flyout>
       </div>
 
       <div className="sketch-tb-divider" />
 
       <Flyout title="Style" className="sketch-style-flyout" trigger={<><span className="sketch-tool-swatch" style={{ background: colorPreview(draw.stroke) }} /><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
         <StyleMenu draw={draw} showFill={props.showFill} showEdges={props.showEdges} showArrowheads={props.showArrowheads} onChange={props.onDrawChange} />
+      </Flyout>
+
+      <Flyout title="Text settings" trigger={<span className="sketch-tool-aa">Aa</span>}>
+        <TextMenu draw={draw} showLinePlacement={props.showLinePlacement} onChange={props.onDrawChange} />
       </Flyout>
 
       <div className="sketch-topbar-spacer" />

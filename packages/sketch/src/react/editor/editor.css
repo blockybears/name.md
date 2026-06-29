@@ -63,7 +63,7 @@
   gap: 3px;
   padding: 5px 7px;
   border-bottom: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
-  background: var(--sketch-panel-bg, rgba(250, 250, 250, 0.96));
+  background: var(--sketch-panel-bg, var(--sketch-surface, #fff));
   flex-wrap: wrap;
   font-size: 13px;
 }
@@ -473,7 +473,7 @@
   padding: 4px;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   border-radius: 8px;
-  background: var(--sketch-panel-bg, #fff);
+  background: var(--sketch-panel-bg, var(--sketch-surface, #fff));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   z-index: 5;
 }
@@ -524,7 +524,7 @@
   max-height: 90%;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--sketch-panel-bg, #fff);
+  background: var(--sketch-panel-bg, var(--sketch-surface, #fff));
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
 }
 
@@ -706,7 +706,7 @@
   flex-direction: column;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   border-radius: 8px;
-  background: var(--sketch-panel-bg, #fff);
+  background: var(--sketch-panel-bg, var(--sketch-surface, #fff));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
@@ -762,7 +762,7 @@
   padding: 5px;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   border-radius: 12px;
-  background: var(--sketch-panel-bg, rgba(250, 250, 250, 0.97));
+  background: var(--sketch-panel-bg, var(--sketch-surface, #fff));
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
   backdrop-filter: blur(6px);
 }
@@ -1078,7 +1078,7 @@
   gap: 10px;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   border-radius: 10px;
-  background: var(--sketch-panel-bg, #fff);
+  background: var(--sketch-panel-bg, var(--sketch-surface, #fff));
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
 }
 
@@ -1197,7 +1197,7 @@
   padding: 8px;
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.3));
   border-radius: 8px;
-  background: var(--sketch-panel-bg, #fff);
+  background: var(--sketch-panel-bg, var(--sketch-surface, #fff));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   z-index: 6;
   display: flex;
