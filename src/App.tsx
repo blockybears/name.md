@@ -1377,7 +1377,7 @@ function App() {
     }
   }, [defaultGitHubLibrary, githubAuth])
 
-  const handlePollGitHub = useCallback(async () => {
+  const handlePollGitHub = useCallback(async (force = false) => {
     if (!githubDeviceFlow) {
       return
     }
@@ -1388,7 +1388,9 @@ function App() {
       return
     }
 
-    if (githubDevicePolling) {
+    // A forced poll (the explicit "Check now" tap) fires immediately even if an
+    // auto-poll is in flight, so it never feels stuck behind the interval.
+    if (!force && githubDevicePolling) {
       return
     }
 
@@ -1469,15 +1471,16 @@ function App() {
       return
     }
 
-    // Re-poll when the window regains focus (e.g. returning from the browser
-    // after entering the code), but never faster than the device-flow interval
-    // or GitHub will throttle us with slow_down and the token never arrives.
+    // Re-poll immediately when the app regains focus (e.g. returning from the
+    // browser after authorizing) so it connects right away instead of waiting
+    // out the interval. A small dedup gap only collapses the burst of
+    // visibility/focus/pageshow events that fire together on resume; a single
+    // poll on a genuine return won't trip GitHub's slow_down.
     const pollIfDue = () => {
       if (document.visibilityState !== 'visible') {
         return
       }
-      const minGap = Math.max(1, githubDeviceFlow.intervalSeconds) * 1000
-      if (Date.now() - lastDevicePollAtRef.current < minGap) {
+      if (Date.now() - lastDevicePollAtRef.current < 1500) {
         return
       }
       void handlePollGitHub()
@@ -1986,7 +1989,7 @@ function App() {
       polling={githubDevicePolling}
       onCancel={handleCancelGitHubSignIn}
       onOpenBrowser={() => void handleOpenGitHubVerification()}
-      onPollNow={() => void handlePollGitHub()}
+      onPollNow={() => void handlePollGitHub(true)}
     />
   ) : null
 
