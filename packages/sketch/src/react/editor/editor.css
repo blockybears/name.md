@@ -8,6 +8,10 @@
   font-family: var(--sketch-ui-font, Inter, system-ui, sans-serif);
   font-size: 13px;
 }
+/* The root takes keyboard focus (for Delete etc.) but shouldn't show a ring. */
+.sketch-editor:focus {
+  outline: none;
+}
 
 /* ---- read (locked) mode chrome (shares .sketch-topbar sizing) ---- */
 .sketch-read-spacer {
@@ -183,10 +187,6 @@
   background: var(--sketch-surface, #fff);
   border: 1px solid var(--sketch-panel-border, rgba(127, 127, 127, 0.25));
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
-}
-.sketch-flyout-pop.align-right {
-  left: auto;
-  right: 0;
 }
 
 /* Menu lists + items */

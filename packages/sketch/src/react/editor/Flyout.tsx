@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from './Icon'
 import { useIsMobile } from './useIsMobile'
@@ -13,9 +13,6 @@ export interface FlyoutProps {
   /** Render the trigger as a primary tool button (blue-filled when active). */
   tool?: boolean
   className?: string
-  /** Desktop popover edge alignment (default 'left'). Use 'right' for triggers
-   *  near the right edge so the menu doesn't spill off-canvas. */
-  align?: 'left' | 'right'
   /** Content; receives a `close` callback so options can dismiss the menu. */
   children: ReactNode | ((close: () => void) => ReactNode)
 }
@@ -24,10 +21,14 @@ export interface FlyoutProps {
  * Responsive menu: a compact popover on desktop, a bottom sheet on mobile.
  * Closes on outside click (desktop) or backdrop tap (mobile).
  */
-export function Flyout({ trigger, title, active, tool, className, align = 'left', children }: FlyoutProps) {
+export function Flyout({ trigger, title, active, tool, className, children }: FlyoutProps) {
   const [open, setOpen] = useState(false)
   const mobile = useIsMobile()
   const ref = useRef<HTMLDivElement | null>(null)
+  const popRef = useRef<HTMLDivElement | null>(null)
+  // Leftward shift applied if the menu would overflow the right of the viewport
+  // (it opens left-aligned to the trigger by default, then clamps on-screen).
+  const [shift, setShift] = useState(0)
   const close = () => setOpen(false)
 
   useEffect(() => {
@@ -41,6 +42,19 @@ export function Flyout({ trigger, title, active, tool, className, align = 'left'
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
+  }, [open, mobile])
+
+  useLayoutEffect(() => {
+    if (!open || mobile || !popRef.current) {
+      setShift(0)
+      return
+    }
+    const margin = 8
+    const rect = popRef.current.getBoundingClientRect()
+    // rect already includes any prior shift, so work out the unclamped right.
+    const overflow = rect.right - shift - (window.innerWidth - margin)
+    setShift(overflow > 0 ? -overflow : 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mobile])
 
   const body = typeof children === 'function' ? children(close) : children
@@ -77,7 +91,7 @@ export function Flyout({ trigger, title, active, tool, className, align = 'left'
               document.body,
             )
           : (
-              <div className={`sketch-flyout-pop ${align === 'right' ? 'align-right' : ''}`} role="menu">
+              <div ref={popRef} className="sketch-flyout-pop" role="menu" style={shift ? { marginLeft: shift } : undefined}>
                 {body}
               </div>
             ))}

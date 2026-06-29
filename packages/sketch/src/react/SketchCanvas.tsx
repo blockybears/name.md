@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react'
@@ -500,6 +501,10 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
         }
         return
       }
+
+      // Take keyboard focus so Delete et al. act on canvas items — and don't
+      // bubble to a host editor — rather than the page/host owning the keys.
+      rootRef.current?.focus({ preventScroll: true })
 
       if (spaceDown || event.button === 1) {
         gestureRef.current = { mode: 'pan', startClient: { x: event.clientX, y: event.clientY }, startCamera: camera }
@@ -1236,7 +1241,22 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       setDraw((current) => ({ ...current, ...patch }))
       if (selected.length > 0) {
         const ids = new Set(selected)
-        commit({ ...scene, elements: scene.elements.map((element) => (ids.has(element.id) ? ({ ...element, ...patch } as SketchElement) : element)) })
+        commit({
+          ...scene,
+          elements: scene.elements.map((element) => {
+            if (!ids.has(element.id)) {
+              return element
+            }
+            const applied: Record<string, unknown> = { ...patch }
+            // A shape's label size lives in labelFontSize, not fontSize (which
+            // only the standalone text element uses), so redirect it there.
+            if (patch.fontSize != null && element.type !== 'text') {
+              applied.labelFontSize = patch.fontSize
+              delete applied.fontSize
+            }
+            return { ...element, ...applied } as SketchElement
+          }),
+        })
       }
     },
     [commit, scene, selected],
@@ -1475,16 +1495,24 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
   }, [commit, scene, viewRect])
 
   // --- keyboard ---
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
+  // Handled on the editor root (which we focus on pointer-down) rather than
+  // window, and propagation is stopped for keys we act on — so a host editor
+  // (e.g. a rich-text doc embedding the canvas) never sees the canvas's
+  // Delete/Backspace and can't wipe the whole drawing.
+  const onRootKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement | null
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
+      if (readOnly) {
+        return
+      }
       if (event.key === ' ' && !typing) {
         setSpaceDown(true)
       }
       const mod = event.metaKey || event.ctrlKey
       if (mod && event.key.toLowerCase() === 'z') {
         event.preventDefault()
+        event.stopPropagation()
         if (event.shiftKey) {
           redo()
         } else {
@@ -1494,11 +1522,13 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       }
       if (mod && event.key.toLowerCase() === 'y') {
         event.preventDefault()
+        event.stopPropagation()
         redo()
         return
       }
       if (mod && event.key.toLowerCase() === 'd') {
         event.preventDefault()
+        event.stopPropagation()
         duplicateSelected()
         return
       }
@@ -1507,15 +1537,18 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       }
       if ((event.key === 'Enter' || event.key === 'F2') && selectedIdsRef.current.length === 1) {
         event.preventDefault()
+        event.stopPropagation()
         editLabelRef.current(selectedIdsRef.current[0])
         return
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
+        event.stopPropagation()
         if (!deleteDiagramRef.current()) {
           deleteSelected()
         }
       } else if (event.key === 'Escape') {
+        event.stopPropagation()
         setSelected([])
         setSelectedDiagramId(null)
         setViewMenuOpen(false)
@@ -1526,22 +1559,18 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
         const map: Record<string, ToolId> = { v: 'select', r: 'rectangle', o: 'ellipse', d: 'diamond', a: 'arrow', l: 'line', p: 'freedraw', t: 'text' }
         const next = map[event.key.toLowerCase()]
         if (next) {
+          event.stopPropagation()
           setTool(next)
         }
       }
+    },
+    [deleteSelected, duplicateSelected, readOnly, redo, undo],
+  )
+  const onRootKeyUp = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === ' ') {
+      setSpaceDown(false)
     }
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === ' ') {
-        setSpaceDown(false)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
-    }
-  }, [deleteSelected, duplicateSelected, redo, undo])
+  }, [])
 
   // --- overlay geometry ---
   const handleSize = HANDLE_PX * scenePerPixel
@@ -1622,6 +1651,9 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       ref={rootRef}
       className={`sketch-editor ${readOnly ? 'is-read' : 'is-edit'} ${readOnly && readPan ? 'is-grab' : ''} ${className ?? ''}`}
       style={{ ...style, height: fullscreen ? '100%' : editorHeight ?? scene.canvasHeight ?? style?.height }}
+      tabIndex={-1}
+      onKeyDown={onRootKeyDown}
+      onKeyUp={onRootKeyUp}
       onPaste={onPaste}
     >
       {readOnly ? (

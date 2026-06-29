@@ -46,7 +46,7 @@ export const defaultDrawState = (style: DrawStyle): DrawState => ({
   fillOpacity: 1,
   startArrowhead: 'none',
   endArrowhead: 'arrow',
-  fontSize: 20,
+  fontSize: 18,
   fontFamily: 'rounded',
   fontBold: false,
   fontItalic: false,
