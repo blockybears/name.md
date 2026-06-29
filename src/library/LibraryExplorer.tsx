@@ -31,7 +31,6 @@ type LibraryDrawerMode = 'explorer' | 'advanced'
 
 type LibraryExplorerProps = {
   activeLibrary: Library | null
-  clientId: string
   defaultRepoName: string
   files: LibraryFile[]
   folderPath: string
@@ -44,7 +43,6 @@ type LibraryExplorerProps = {
   syncing?: boolean
   onAddLocalLibrary: () => void
   onBackFolder: () => void
-  onChangeClientId: (clientId: string) => void
   onClose?: () => void
   onConnectGitHub: () => void
   onCreateFile: () => void
@@ -98,7 +96,6 @@ export function SyncStatusBadge({ status }: { status: LibraryFile['status'] }) {
 
 export function LibraryExplorer({
   activeLibrary,
-  clientId,
   defaultRepoName,
   files,
   folderPath,
@@ -111,7 +108,6 @@ export function LibraryExplorer({
   syncing = false,
   onAddLocalLibrary,
   onBackFolder,
-  onChangeClientId,
   onClose,
   onConnectGitHub,
   onCreateFile,
@@ -215,23 +211,11 @@ export function LibraryExplorer({
               <strong>{githubConnected ? githubLogin || 'Connected' : 'Not connected'}</strong>
             </div>
 
-            <label>
-              OAuth Client ID
-              <input
-                value={clientId}
-                placeholder="GitHub OAuth app client ID"
-                onChange={(event) => onChangeClientId(event.target.value)}
-              />
-            </label>
-
             {!githubConnected && (
-              <>
-                <button type="button" onClick={onConnectGitHub} disabled={!clientId.trim()}>
-                  <GitBranch size={15} />
-                  Connect GitHub
-                </button>
-                {!clientId.trim() && <div className="empty-library">Enter a GitHub OAuth client ID before connecting.</div>}
-              </>
+              <button type="button" onClick={onConnectGitHub}>
+                <GitBranch size={15} />
+                Connect GitHub
+              </button>
             )}
 
             {githubConnected && (
@@ -439,13 +423,10 @@ export function LibraryExplorer({
 
       <section className="library-footer">
         {!githubConnected && (
-          <>
-            <button type="button" onClick={onConnectGitHub} disabled={!clientId.trim()}>
-              <GitBranch size={15} />
-              Connect GitHub
-            </button>
-            {!clientId.trim() && <div className="empty-library">Add the GitHub OAuth client ID in Advanced Settings.</div>}
-          </>
+          <button type="button" onClick={onConnectGitHub}>
+            <GitBranch size={15} />
+            Connect GitHub
+          </button>
         )}
         {githubConnected && (
           <>

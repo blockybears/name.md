@@ -99,14 +99,13 @@ import {
   loadActiveLibraryId,
   loadEditorSession,
   loadGitHubAuth,
-  loadGitHubClientId,
   loadGitHubDeviceFlow,
   loadLibraries,
   nowIso,
   saveActiveLibraryId,
   saveEditorSession,
   saveGitHubAuth,
-  saveGitHubClientId,
+  loadGitHubClientId,
   saveGitHubDeviceFlow,
   saveLibraries,
   setFileLink,
@@ -612,7 +611,8 @@ function App() {
   const [libraryDrawerOpen, setLibraryDrawerOpen] = useState(false)
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false)
   const [githubAuth, setGithubAuth] = useState<GitHubAuthState | null>(loadGitHubAuth)
-  const [githubClientId, setGithubClientId] = useState(loadGitHubClientId)
+  // Baked-in OAuth client ID — not a user setting.
+  const githubClientId = loadGitHubClientId()
   const [githubDeviceFlow, setGithubDeviceFlow] = useState<GitHubDeviceFlowState | null>(loadGitHubDeviceFlow)
   const [githubDevicePolling, setGithubDevicePolling] = useState(false)
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
@@ -689,10 +689,6 @@ function App() {
   useEffect(() => {
     saveGitHubAuth(githubAuth)
   }, [githubAuth])
-
-  useEffect(() => {
-    saveGitHubClientId(githubClientId)
-  }, [githubClientId])
 
   useEffect(() => {
     document.title = `${dirty ? '*' : ''}${fileDisplayName(currentFile)} - NAME.md`
@@ -1997,7 +1993,6 @@ function App() {
   const explorer = (
     <LibraryExplorer
       activeLibrary={activeLibrary}
-      clientId={githubClientId}
       defaultRepoName={defaultGitHubRepoName}
       files={libraryFiles}
       folderPath={libraryFolderPath}
@@ -2010,7 +2005,6 @@ function App() {
       syncing={syncing}
       onAddLocalLibrary={handleAddLocalLibrary}
       onBackFolder={() => setLibraryFolderPath(parentFolder(libraryFolderPath))}
-      onChangeClientId={setGithubClientId}
       onClose={showMobileLibrary ? (hasOpenDocument ? () => setMobileLibraryOpen(false) : undefined) : () => setLibraryDrawerOpen(false)}
       onConnectGitHub={handleStartGitHub}
       onCreateFile={handleCreateFile}

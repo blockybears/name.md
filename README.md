@@ -313,13 +313,16 @@ You can also trigger the workflow manually with `workflow_dispatch` from the Git
 
 The app can connect to GitHub and use a repository as a Markdown library.
 
-To use that flow yourself, you need:
+The GitHub OAuth app client ID is **baked into the app** (a client ID is a public
+identifier, not a secret), so there's nothing to configure — just **Connect
+GitHub** and complete the device flow. To use that flow yourself, you need:
 
 - A GitHub account
-- A GitHub OAuth app client ID
 - Permission to create or use a repository for your documents
 
-The app restricts its native HTTP bridge to GitHub API and GitHub OAuth endpoints.
+(A build-time `VITE_GITHUB_CLIENT_ID` can override the embedded ID for alternate
+deployments.) The app restricts its native HTTP bridge to GitHub API and GitHub
+OAuth endpoints.
 
 ## Development notes
 

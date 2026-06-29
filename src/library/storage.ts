@@ -4,7 +4,6 @@ const librariesKey = 'name-md.libraries.v1'
 const activeLibraryKey = 'name-md.active-library.v1'
 const editorSessionKey = 'name-md.editor-session.v1'
 const githubAuthKey = 'name-md.github-auth.v1'
-const githubClientIdKey = 'name-md.github-client-id.v1'
 const githubDeviceFlowKey = 'name-md.github-device-flow.v1'
 const githubCacheKey = 'name-md.github-cache.v1'
 const fileLinksKey = 'name-md.file-links.v1'
@@ -73,16 +72,14 @@ export function saveGitHubAuth(auth: GitHubAuthState | null) {
   }
 }
 
-export function loadGitHubClientId() {
-  return localStorage.getItem(githubClientIdKey) || import.meta.env.VITE_GITHUB_CLIENT_ID || ''
-}
+// Baked-in GitHub OAuth App client ID. A client ID is a public identifier (not
+// a secret), so it ships in the app; it grants the user — via the device flow —
+// access to their own private repos. Not user-editable; a build-time
+// VITE_GITHUB_CLIENT_ID may still override it for alternate deployments.
+export const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liMB4R0H09IPP0XF'
 
-export function saveGitHubClientId(clientId: string) {
-  if (clientId.trim()) {
-    localStorage.setItem(githubClientIdKey, clientId.trim())
-  } else {
-    localStorage.removeItem(githubClientIdKey)
-  }
+export function loadGitHubClientId() {
+  return GITHUB_CLIENT_ID
 }
 
 export function loadGitHubDeviceFlow() {
