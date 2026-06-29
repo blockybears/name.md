@@ -27,3 +27,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Release builds strip symbols and optimise for size — the unstripped debug
+# library was ~150 MB of the APK; stripped release is a fraction of that.
+[profile.release]
+strip = true
+opt-level = "s"

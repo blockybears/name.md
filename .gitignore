@@ -34,3 +34,8 @@ src-tauri/gen/android/app/src/main/jniLibs/
 *.njsproj
 *.sln
 *.sw?
+
+# Android release signing (never commit secrets)
+src-tauri/gen/android/keystore.properties
+*.jks
+*.keystore
