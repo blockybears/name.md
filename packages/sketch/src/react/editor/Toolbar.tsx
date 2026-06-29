@@ -118,14 +118,12 @@ export function Toolbar(props: ToolbarProps) {
           <Icon name="freedraw" />
         </button>
 
-        <Flyout title="Text" active={tool === 'text' || props.showText} trigger={<><Icon name="text" /><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
-          {(close) => (
-            <div className="sketch-menu-list">
-              <MenuItem icon="text" label="Text tool" active={tool === 'text'} onClick={() => { onTool('text'); close() }} />
-              <div className="sketch-menu-divider" />
-              <TextMenu draw={draw} showLinePlacement={props.showLinePlacement} onChange={props.onDrawChange} />
-            </div>
-          )}
+        <button type="button" className="sketch-tool-btn" aria-label="Text" aria-pressed={tool === 'text'} title="Text tool (T)" onClick={() => onTool('text')}>
+          <Icon name="text" />
+        </button>
+
+        <Flyout title="Text settings" trigger={<span className="sketch-tool-aa">Aa</span>}>
+          <TextMenu draw={draw} showLinePlacement={props.showLinePlacement} onChange={props.onDrawChange} />
         </Flyout>
       </div>
 
@@ -172,8 +170,8 @@ export function Toolbar(props: ToolbarProps) {
       <div className="sketch-tb-divider" />
 
       {props.onExit && (
-        <button type="button" className="sketch-done" title="Lock — back to read mode" onClick={props.onExit}>
-          <Icon name="lock" size={15} /> Read
+        <button type="button" className="sketch-lock-toggle" aria-label="Lock (read mode)" title="Lock — back to read mode" onClick={props.onExit}>
+          <Icon name="unlock" />
         </button>
       )}
     </div>

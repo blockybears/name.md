@@ -58,6 +58,7 @@ export type IconName =
   | 'more'
   | 'fullscreen'
   | 'magnify'
+  | 'hand'
 
 // 24x24 viewBox, stroke = currentColor. Each entry returns the inner markup.
 function paths(name: IconName) {
@@ -327,10 +328,11 @@ function paths(name: IconName) {
     case 'fullscreen':
       return (
         <>
-          <path d="M4 9V5a1 1 0 0 1 1-1h4" />
-          <path d="M20 9V5a1 1 0 0 0-1-1h-4" />
-          <path d="M4 15v4a1 1 0 0 0 1 1h4" />
-          <path d="M20 15v4a1 1 0 0 1-1 1h-4" />
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M12 12L7 7M7 10V7h3" />
+          <path d="M12 12l5-5M14 7h3v3" />
+          <path d="M12 12l-5 5M7 14v3h3" />
+          <path d="M12 12l5 5M17 14v3h-3" />
         </>
       )
     case 'magnify':
@@ -338,6 +340,14 @@ function paths(name: IconName) {
         <>
           <circle cx="11" cy="11" r="6" />
           <path d="M20 20l-4.5-4.5" />
+        </>
+      )
+    case 'hand':
+      return (
+        <>
+          <path d="M8 11V6a1.5 1.5 0 0 1 3 0v4" />
+          <path d="M11 10V5a1.5 1.5 0 0 1 3 0v5" />
+          <path d="M14 10V6.5a1.5 1.5 0 0 1 3 0V14a5 5 0 0 1-5 5h-1a5 5 0 0 1-4-2l-2.5-3.5a1.5 1.5 0 0 1 2.4-1.8L8 12" />
         </>
       )
     case 'reshape':

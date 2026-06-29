@@ -76,6 +76,7 @@ import {
 } from '../core'
 import { RenderedScene } from './RenderedScene'
 import { Icon } from './editor/Icon'
+import { LockButton } from './editor/LockButton'
 import { Toolbar } from './editor/Toolbar'
 import { DataEditor } from './editor/DataEditor'
 import type { LayerAction } from './editor/PropertiesBar'
@@ -111,8 +112,6 @@ export interface SketchCanvasProps {
   style?: CSSProperties
 }
 
-/** How long (ms) to hold on the locked canvas before it unlocks to edit. */
-const LONG_PRESS_MS = 700
 
 const HANDLE_PX = 9
 const ROTATE_OFFSET_PX = 26
@@ -163,18 +162,12 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
     },
     [modeProp, onExit, onModeChange],
   )
-  // Long-press-to-unlock feedback (mobile).
-  const [pressing, setPressing] = useState(false)
-  const pressRef = useRef<{ timer: number; startClient: Point } | null>(null)
+  // In read mode the canvas is frozen until the grab/hand tool is toggled on,
+  // so scrolling notes can't accidentally pan/zoom the sketch. (Unlocking is via
+  // the padlock — a click on desktop, a hold on mobile.)
+  const [readPan, setReadPan] = useState(false)
   // Whether Shift is held during the current gesture (rotation snaps to 15°).
   const shiftRef = useRef(false)
-  const cancelLongPress = useCallback(() => {
-    if (pressRef.current) {
-      clearTimeout(pressRef.current.timer)
-      pressRef.current = null
-    }
-    setPressing(false)
-  }, [])
   const [fullscreen, setFullscreen] = useState(false)
 
   const [scene, setScene] = useState<Scene>(initialScene)
@@ -485,8 +478,8 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       event.currentTarget.setPointerCapture(event.pointerId)
       pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
 
-      // Two fingers down → start a pinch zoom/pan and abandon any other gesture.
-      if (pointersRef.current.size === 2) {
+      // Two fingers down → start a pinch zoom/pan (locked canvas: only with grab).
+      if (pointersRef.current.size === 2 && !(readOnly && !readPan)) {
         const [a, b] = [...pointersRef.current.values()]
         pinchRef.current = {
           dist: Math.hypot(b.x - a.x, b.y - a.y),
@@ -499,20 +492,12 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
 
       const point = toScene(event.clientX, event.clientY)
 
-      // Locked (read) mode: a drag pans, a sustained hold unlocks to edit.
+      // Locked (read) mode: the canvas is frozen unless the grab tool is on
+      // (then a drag pans). Unlocking happens on the padlock, not the canvas.
       if (readOnly) {
-        gestureRef.current = { mode: 'pan', startClient: { x: event.clientX, y: event.clientY }, startCamera: camera }
-        cancelLongPress()
-        setPressing(true)
-        const timer = window.setTimeout(() => {
-          pressRef.current = null
-          setPressing(false)
-          if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(18)
-          }
-          setMode('edit')
-        }, LONG_PRESS_MS)
-        pressRef.current = { timer, startClient: { x: event.clientX, y: event.clientY } }
+        if (readPan) {
+          gestureRef.current = { mode: 'pan', startClient: { x: event.clientX, y: event.clientY }, startCamera: camera }
+        }
         return
       }
 
@@ -674,7 +659,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
         setSelected([])
       }
     },
-    [camera, canResize, cancelLongPress, draw, flatElements, ganttEditGeo, readOnly, selectedDiagram, setMode, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
+    [camera, canResize, draw, flatElements, ganttEditGeo, readOnly, readPan, selectedDiagram, vertexTarget, editingText, newElementStyle, scene, scenePerPixel, selected, selectedElements, selectionRect, selectionAngle, selectionCenter, spaceDown, tool, toScene],
   )
 
   const snapActive = snapEnabled || gridEnabled
@@ -762,10 +747,6 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
         return
       }
       if (gesture.mode === 'pan') {
-        // A real pan cancels a pending long-press-to-unlock.
-        if (pressRef.current && Math.hypot(event.clientX - pressRef.current.startClient.x, event.clientY - pressRef.current.startClient.y) > 8) {
-          cancelLongPress()
-        }
         const dx = (event.clientX - gesture.startClient.x) / camera.zoom
         const dy = (event.clientY - gesture.startClient.y) / camera.zoom
         setCamera({ ...gesture.startCamera, x: gesture.startCamera.x - dx, y: gesture.startCamera.y - dy })
@@ -842,7 +823,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
         setScene(next)
       }
     },
-    [applyGanttEdit, applyGesture, camera, cancelLongPress, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
+    [applyGanttEdit, applyGesture, camera, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onPointerUp = useCallback(
@@ -852,7 +833,6 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       if (pointersRef.current.size < 2) {
         pinchRef.current = null
       }
-      cancelLongPress()
       const gesture = gestureRef.current
       gestureRef.current = { mode: 'none' }
       setMarquee(null)
@@ -970,11 +950,16 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       }
       commit(next)
     },
-    [applyGanttEdit, applyGesture, cancelLongPress, commit, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
+    [applyGanttEdit, applyGesture, commit, gridEnabled, scene.elements, scenePerPixel, snapActive, snapDrawPoint, snapEnabled, toScene],
   )
 
   const onWheel = useCallback(
     (event: ReactWheelEvent<SVGSVGElement>) => {
+      // When locked, only zoom if the grab tool is active (otherwise scrolling
+      // a note over the sketch would zoom it accidentally).
+      if (readOnly && !readPan) {
+        return
+      }
       const rect = svgRef.current?.getBoundingClientRect()
       if (!rect) {
         return
@@ -985,7 +970,7 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
       const cy = event.clientY - rect.top
       setCamera({ zoom: nextZoom, x: camera.x + cx / camera.zoom - cx / nextZoom, y: camera.y + cy / camera.zoom - cy / nextZoom })
     },
-    [camera],
+    [camera, readOnly, readPan],
   )
 
   /** Open inline label/text editing for a given element id. */
@@ -1609,25 +1594,34 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
   return (
     <div
       ref={rootRef}
-      className={`sketch-editor ${readOnly ? 'is-read' : 'is-edit'} ${pressing ? 'is-pressing' : ''} ${className ?? ''}`}
+      className={`sketch-editor ${readOnly ? 'is-read' : 'is-edit'} ${readOnly && readPan ? 'is-grab' : ''} ${className ?? ''}`}
       style={{ ...style, height: fullscreen ? '100%' : editorHeight ?? scene.canvasHeight ?? style?.height }}
       onPaste={onPaste}
     >
       {readOnly ? (
-        <div className="sketch-read-bar">
-          <span className="sketch-read-lock" title="Locked — hold the canvas or press Edit to unlock">
+        <div className="sketch-read-bar sketch-topbar">
+          <span className="sketch-read-lock" title="Locked — hold the canvas or press the padlock to edit">
             <Icon name="lock" size={14} /> Locked
           </span>
           <span className="sketch-read-spacer" />
-          <button type="button" className="sketch-icon-btn" aria-label="Fit to content" title="Fit" onClick={fitContent}>
+          <button
+            type="button"
+            className="sketch-tool-btn"
+            aria-label="Pan / zoom"
+            aria-pressed={readPan}
+            title={readPan ? 'Panning on — drag to move, scroll to zoom' : 'Enable pan / zoom'}
+            onClick={() => setReadPan((value) => !value)}
+          >
+            <Icon name="hand" />
+          </button>
+          <button type="button" className="sketch-tool-btn" aria-label="Fit to content" title="Fit" onClick={fitContent}>
             <Icon name="fit" />
           </button>
-          <button type="button" className="sketch-icon-btn" aria-label="Fullscreen" title="Fullscreen" onClick={toggleFullscreen}>
+          <button type="button" className="sketch-tool-btn" aria-label="Fullscreen" title="Fullscreen" onClick={toggleFullscreen}>
             <Icon name="fullscreen" />
           </button>
-          <button type="button" className="sketch-read-edit" title="Unlock to edit" onClick={() => setMode('edit')}>
-            <Icon name="unlock" size={15} /> Edit
-          </button>
+          <div className="sketch-tb-divider" />
+          <LockButton onUnlock={() => setMode('edit')} />
         </div>
       ) : null}
       {!readOnly && (
@@ -1803,16 +1797,6 @@ export function SketchCanvas({ scene: initialScene, onChange, mode: modeProp, de
               ),
             )}
           </svg>
-
-          {readOnly && pressing && (
-            <div className="sketch-press-overlay" aria-hidden="true">
-              <div className="sketch-press-card">
-                <span className="sketch-press-ring" />
-                <Icon name="unlock" size={20} />
-                <span className="sketch-press-text">Hold to edit…</span>
-              </div>
-            </div>
-          )}
 
           {editorBox && editingText && (
             <textarea
