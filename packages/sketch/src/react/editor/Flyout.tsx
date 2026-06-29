@@ -51,8 +51,13 @@ export function Flyout({ trigger, title, active, tool, className, children }: Fl
     }
     const margin = 8
     const rect = popRef.current.getBoundingClientRect()
+    // Stay within the editor's right edge, not just the window: when embedded
+    // (e.g. in a doc) the canvas is narrower than the viewport and clips
+    // overflow, so a window-only check would let menus spill off-canvas.
+    const editor = popRef.current.closest('.sketch-editor')
+    const limit = Math.min(window.innerWidth, editor ? editor.getBoundingClientRect().right : window.innerWidth) - margin
     // rect already includes any prior shift, so work out the unclamped right.
-    const overflow = rect.right - shift - (window.innerWidth - margin)
+    const overflow = rect.right - shift - limit
     setShift(overflow > 0 ? -overflow : 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mobile])

@@ -129,7 +129,7 @@ export function Toolbar(props: ToolbarProps) {
         <StyleMenu draw={draw} showFill={props.showFill} showEdges={props.showEdges} showArrowheads={props.showArrowheads} onChange={props.onDrawChange} />
       </Flyout>
 
-      <Flyout title="Text settings" trigger={<span className="sketch-tool-aa">Aa</span>}>
+      <Flyout title="Text settings" trigger={<><span className="sketch-tool-aa">Aa</span><Icon name="chevron-down" size={13} className="sketch-tool-caret" /></>}>
         <TextMenu draw={draw} showLinePlacement={props.showLinePlacement} onChange={props.onDrawChange} />
       </Flyout>
 
