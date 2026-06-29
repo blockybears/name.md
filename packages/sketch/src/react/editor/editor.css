@@ -210,6 +210,13 @@
   font-size: 12px;
   cursor: pointer;
 }
+/* The desktop popover lives inside the toolbar DOM, so the centered
+ *  `.sketch-topbar button` base would leak in — keep menu rows left-aligned.
+ *  (Scoped high enough to beat that base; the higher specificity also wins.) */
+.sketch-topbar .sketch-menu-item,
+.sketch-topbar .sketch-flyout-row {
+  justify-content: flex-start;
+}
 .sketch-menu-item svg {
   width: 15px;
   height: 15px;
