@@ -1,60 +1,62 @@
 /* eslint-disable react-refresh/only-export-components */
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react'
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useMemo } from 'react'
 import { parseScene, serializeScene, type Scene } from '@namemd/sketch'
 import { SketchView } from '@namemd/sketch/react'
 import { fencedBlockMarkdown } from './fencedBlock'
 
-// The interactive editor loads only when editing. Imported from a dedicated
-// subpath (not the react barrel that SketchView uses) so it truly code-splits.
+// The interactive canvas loads from a dedicated subpath so it code-splits out of
+// the main bundle; the lightweight SketchView renders while that chunk loads.
 const SketchCanvas = lazy(() =>
   import('@namemd/sketch/react/canvas').then((mod) => ({ default: mod.SketchCanvas })),
 )
 
+function isEmptyScene(scene: Scene): boolean {
+  return scene.elements.length === 0 && (scene.diagrams?.length ?? 0) === 0
+}
+
 function SketchDrawingView({ node, updateAttributes, editor }: NodeViewProps) {
   const code = String(node.attrs.code ?? '')
-  const [editing, setEditing] = useState(false)
   const scene = useMemo<Scene>(() => parseScene(code), [code])
   const editable = editor.isEditable
 
-  const persist = (next: Scene) => {
-    updateAttributes({ code: serializeScene(next) })
+  const persist = useCallback(
+    (next: Scene) => {
+      updateAttributes({ code: serializeScene(next) })
+    },
+    [updateAttributes],
+  )
+
+  // Read-only documents render the static, non-interactive view (no chrome).
+  if (!editable) {
+    return (
+      <NodeViewWrapper className="sketch-drawing-block" contentEditable={false}>
+        {isEmptyScene(scene) ? (
+          <div className="sketch-drawing-empty">Empty drawing</div>
+        ) : (
+          <SketchView scene={scene} className="sketch-drawing-svg" />
+        )}
+      </NodeViewWrapper>
+    )
   }
+
+  // Editable: the full canvas inline. It opens locked (read mode) with its own
+  // pan/fullscreen/unlock chrome; a freshly inserted empty drawing opens in edit
+  // mode so you can start drawing straight away.
+  const fallback = isEmptyScene(scene) ? (
+    <div className="sketch-drawing-loading">Loading editor…</div>
+  ) : (
+    <SketchView scene={scene} className="sketch-drawing-svg" />
+  )
 
   return (
     <NodeViewWrapper className="sketch-drawing-block" contentEditable={false}>
-      {editing ? (
-        <div className="sketch-drawing-stage">
-          <Suspense fallback={<div className="sketch-drawing-loading">Loading editor…</div>}>
-            <SketchCanvas scene={scene} onChange={persist} onExit={() => setEditing(false)} />
-          </Suspense>
-        </div>
-      ) : (
-        <div
-          className="sketch-drawing-readview"
-          role={editable ? 'button' : undefined}
-          tabIndex={editable ? 0 : undefined}
-          onDoubleClick={() => editable && setEditing(true)}
-          onKeyDown={(event) => {
-            if (editable && (event.key === 'Enter' || event.key === ' ')) {
-              event.preventDefault()
-              setEditing(true)
-            }
-          }}
-        >
-          {scene.elements.length === 0 ? (
-            <div className="sketch-drawing-empty">{editable ? 'Double-click to draw' : 'Empty drawing'}</div>
-          ) : (
-            <SketchView scene={scene} className="sketch-drawing-svg" />
-          )}
-          {editable && (
-            <button type="button" className="sketch-drawing-edit" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-          )}
-        </div>
-      )}
+      <div className="sketch-drawing-stage">
+        <Suspense fallback={fallback}>
+          <SketchCanvas scene={scene} onChange={persist} defaultMode={isEmptyScene(scene) ? 'edit' : 'read'} style={{ height: 420 }} />
+        </Suspense>
+      </div>
     </NodeViewWrapper>
   )
 }
@@ -62,8 +64,9 @@ function SketchDrawingView({ node, updateAttributes, editor }: NodeViewProps) {
 /**
  * Unified drawing/diagram block backed by the @namemd/sketch engine. The scene
  * is stored as JSON in a ```sketch fence (app-first; degrades to a JSON code
- * block elsewhere). Read mode renders the scene's default view inline and
- * adapts to the host theme; double-click / Edit opens the interactive editor.
+ * block elsewhere). In an editable document it renders the interactive canvas
+ * inline — locked read mode with pan/fullscreen/unlock chrome — and adapts to
+ * the host theme; read-only documents get the lightweight static view.
  */
 export const SketchDrawing = Node.create({
   name: 'sketchDrawing',
