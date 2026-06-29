@@ -52,19 +52,7 @@ function SketchDrawingView({ node, updateAttributes, editor }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="sketch-drawing-block" contentEditable={false}>
-      {/* Keep mouse/keyboard interaction inside the canvas: stopping these from
-          reaching ProseMirror prevents it from node-selecting the block (so a
-          stray Delete can't wipe the whole drawing) and lets the canvas own its
-          own keys — it deletes the selected canvas item instead. */}
-      <div
-        className="sketch-drawing-stage"
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === 'Delete' || event.key === 'Backspace') {
-            event.stopPropagation()
-          }
-        }}
-      >
+      <div className="sketch-drawing-stage">
         <Suspense fallback={fallback}>
           <SketchCanvas scene={scene} onChange={persist} defaultMode={isEmptyScene(scene) ? 'edit' : 'read'} style={{ height: 420 }} />
         </Suspense>
@@ -109,6 +97,10 @@ export const SketchDrawing = Node.create({
   ...fencedBlockMarkdown('sketchDrawing', 'sketch'),
 
   addNodeView() {
-    return ReactNodeViewRenderer(SketchDrawingView)
+    // Tell ProseMirror to ignore DOM events inside the canvas: it never
+    // node-selects the block (so a stray Delete can't wipe the whole drawing)
+    // and the canvas owns its own mouse/keyboard — without stopping propagation,
+    // so dragging to draw/move/resize stays a single natural gesture.
+    return ReactNodeViewRenderer(SketchDrawingView, { stopEvent: () => true })
   },
 })
