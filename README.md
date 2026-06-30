@@ -316,6 +316,59 @@ Builds AppImage, Deb, and RPM in one run:
 npm run release:linux
 ```
 
+### Windows release
+
+Must be built on Windows. With `bundle.targets` set to `all`, a normal build
+produces both an MSI (WiX) and an NSIS setup `.exe`:
+
+```powershell
+npm run tauri:build
+```
+
+To build only the MSI:
+
+```powershell
+npm run tauri build -- --bundles msi
+```
+
+Outputs:
+
+- `.msi` — `src-tauri\target\release\bundle\msi\NAME.md_<version>_x64_en-US.msi`
+- `.exe` (NSIS setup) — `src-tauri\target\release\bundle\nsis\NAME.md_<version>_x64-setup.exe`
+
+WiX and NSIS are downloaded automatically on the first build. The installers are
+unsigned unless you configure an Authenticode certificate, so Windows SmartScreen
+will warn on first run.
+
+### Android release
+
+Requires the Android SDK/NDK and JDK 17 (see the Android prerequisites above).
+Build a release APK for 64-bit devices:
+
+```bash
+npm run tauri -- android build --apk --target aarch64
+```
+
+Output:
+
+- `.apk` — `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`
+
+Release APKs must be signed to install. Create
+`src-tauri/gen/android/keystore.properties` (gitignored — never commit it)
+pointing at your keystore:
+
+```properties
+storeFile=/absolute/path/to/your-release.jks
+storePassword=…
+keyAlias=…
+keyPassword=…
+```
+
+Generate a keystore once with `keytool -genkeypair -v -keystore your-release.jks
+-keyalg RSA -keysize 2048 -validity 10000 -alias <alias>`. Without
+`keystore.properties` the release build is left unsigned. Keep the keystore safe
+— the same one is required to ship updates that install over an existing build.
+
 ## GitHub publishing and releases
 
 This repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
@@ -332,8 +385,8 @@ The workflow creates a draft GitHub release and uploads the generated assets.
 Push a semantic version tag:
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 You can also trigger the workflow manually with `workflow_dispatch` from the GitHub Actions UI.
