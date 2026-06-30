@@ -4,14 +4,42 @@
 
 It is designed for local-first writing, with optional GitHub-backed document libraries for syncing Markdown content through your own repository.
 
+## Changelog
+
+### 0.2.0
+
+- **New: drawings & diagrams.** A from-scratch SVG drawing/diagram engine
+  (`@namemd/sketch`, in `packages/sketch`), loosely inspired by Excalidraw but
+  extended for project-management brainstorming. Drawings live inline in a
+  document (a `sketch` fenced block) and render hand-drawn or clean, theme-aware.
+  Beyond freeform shapes/connectors/freehand/text it adds structured diagrams —
+  notably **Gantt charts** with a real scheduling model (FS/SS/FF/SF
+  dependencies with lag, progress, critical-path / activity-on-node views) plus
+  charts, flowcharts, and mind maps. The drawing locks to a clean read view in
+  the document and unlocks to a full editor in place.
+- **New: collapsible sections** and **callouts** content blocks.
+- **Fix: GitHub OAuth client ID is now baked in.** It's no longer an editable
+  setting — connecting to GitHub works out of the box.
+- **Fix: GitHub sign-in timeout.** The device-flow login now polls immediately
+  on returning to the app and on an explicit "Check Now", instead of stalling
+  behind the (sometimes inflated) poll interval.
+
 ## Features
 
 - Rich Markdown editing powered by TipTap
+- Rich content blocks: tables, task lists, **callouts**, **collapsible sections**,
+  footnotes, and definition lists
+- **Drawings & diagrams** — an in-house, theme-aware vector drawing engine
+  (`@namemd/sketch`) embedded directly in documents: hand-drawn or clean shapes,
+  connectors, freehand, and text, plus structured diagrams (Gantt with a
+  critical-path/dependency model, charts, flowcharts, mind maps) aimed at
+  project-management brainstorming
 - Local file editing with open, save, rename, move, and delete actions
 - Local folder libraries for browsing Markdown collections
-- Optional GitHub library support using your own repository
+- Optional GitHub library support using your own repository (OAuth client ID is
+  baked in — just connect, nothing to configure)
 - Light, warm, and dark themes
-- Desktop packaging through Tauri for macOS and Linux
+- Desktop packaging through Tauri for macOS, Windows, and Linux, plus Android
 
 ## Tech stack
 
@@ -25,6 +53,7 @@ It is designed for local-first writing, with optional GitHub-backed document lib
 ```text
 .
 ├── src/                 Frontend application code
+├── packages/sketch/     @namemd/sketch drawing/diagram engine (in-repo workspace)
 ├── src-tauri/           Tauri and Rust desktop application code
 ├── public/              Static assets
 ├── dist/                Production frontend build output
