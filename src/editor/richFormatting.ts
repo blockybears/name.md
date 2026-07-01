@@ -1,4 +1,5 @@
 import { Mark, Node, mergeAttributes, type MarkdownToken } from '@tiptap/core'
+import { memoizedBlockStart } from './markdownTokenizer'
 
 type MarkdownTokenWithChildren = MarkdownToken & Record<string, unknown>
 
@@ -9,6 +10,9 @@ type MarkdownTokenWithChildren = MarkdownToken & Record<string, unknown>
  * the unsafe-HTML escaping pass.
  */
 function createHtmlTagMark(name: string, tag: string, keyboardShortcut?: string) {
+  // Precompiled once per mark (was rebuilt on every tokenizer call).
+  const openPattern = new RegExp(`<${tag}>`, 'i')
+  const pairPattern = new RegExp(`^<${tag}>([\\s\\S]*?)</${tag}>`, 'i')
   return Mark.create({
     name,
 
@@ -41,10 +45,10 @@ function createHtmlTagMark(name: string, tag: string, keyboardShortcut?: string)
       name,
       level: 'inline',
       start(src: string) {
-        return src.search(new RegExp(`<${tag}>`, 'i'))
+        return src.search(openPattern)
       },
       tokenize(src: string, _tokens: MarkdownToken[], lexer) {
-        const match = new RegExp(`^<${tag}>([\\s\\S]*?)</${tag}>`, 'i').exec(src)
+        const match = pairPattern.exec(src)
         if (!match) {
           return undefined
         }
@@ -180,9 +184,7 @@ export const Callout = Node.create({
   markdownTokenizer: {
     name: 'callout',
     level: 'block',
-    start(src: string) {
-      return src.search(/^>[ \t]*\[!\w+\]/im)
-    },
+    start: memoizedBlockStart((src: string) => src.search(/^>[ \t]*\[!\w+\]/im)),
     tokenize(src: string, _tokens: MarkdownToken[], lexer) {
       const firstLine = /^>[ \t]*\[!(\w+)\][ \t]*(.*)(?:\n|$)/.exec(src)
       if (!firstLine) {

@@ -1,4 +1,5 @@
 import type { JSONContent, MarkdownToken } from '@tiptap/core'
+import { memoizedBlockStart } from './markdownTokenizer'
 
 type FencedToken = MarkdownToken & { code?: string }
 
@@ -10,14 +11,16 @@ type FencedToken = MarkdownToken & { code?: string }
  */
 export function fencedBlockMarkdown(name: string, lang: string) {
   const fencePattern = new RegExp(`^\`\`\`[ \\t]*${lang}[ \\t]*\\n([\\s\\S]*?)\\n?\`\`\`[ \\t]*(?:\\n|$)`, 'i')
+  // Precompiled once (was rebuilt on every call).
+  const startPattern = new RegExp(`^\`\`\`[ \\t]*${lang}\\b`, 'im')
 
   return {
     markdownTokenizer: {
       name,
       level: 'block' as const,
-      start(src: string) {
-        return src.search(new RegExp(`^\`\`\`[ \\t]*${lang}\\b`, 'im'))
-      },
+      // Cheap reject (no bare fence at all) then the language-specific search;
+      // memoized so it doesn't rescan the whole doc per paragraph.
+      start: memoizedBlockStart((src: string) => (src.indexOf('```') === -1 ? -1 : src.search(startPattern))),
       tokenize(src: string) {
         const match = fencePattern.exec(src)
         if (!match) {

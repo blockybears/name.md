@@ -1,4 +1,5 @@
 import { Node, mergeAttributes, type MarkdownToken } from '@tiptap/core'
+import { memoizedBlockStart } from './markdownTokenizer'
 
 type MarkdownTokenWithChildren = MarkdownToken & Record<string, unknown>
 
@@ -89,9 +90,7 @@ export const Details = Node.create({
   markdownTokenizer: {
     name: 'details',
     level: 'block',
-    start(src: string) {
-      return src.search(/<details[\s>]/i)
-    },
+    start: memoizedBlockStart((src: string) => src.search(/<details[\s>]/i)),
     tokenize(src: string, _tokens: MarkdownToken[], lexer) {
       const match = /^<details([^>]*)>([\s\S]*?)<\/details>[^\S\n]*(?:\n|$)/i.exec(src)
       if (!match) {

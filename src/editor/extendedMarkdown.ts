@@ -8,6 +8,7 @@ import {
   type MarkdownLexerConfiguration,
   type MarkdownToken,
 } from '@tiptap/core'
+import { memoizedBlockStart } from './markdownTokenizer'
 
 type MarkdownTokenWithChildren = MarkdownToken & Record<string, unknown>
 
@@ -360,7 +361,7 @@ export const FootnoteDefinition = Node.create({
   markdownTokenizer: {
     name: 'footnoteDefinition',
     level: 'block',
-    start: (src: string) => src.search(/^\[\^[^\]\n]+\]:/m),
+    start: memoizedBlockStart((src: string) => src.search(/^\[\^[^\]\n]+\]:/m)),
     tokenize(src: string, _tokens: MarkdownToken[], lexer: MarkdownLexerConfiguration) {
       const match = /^\[\^([^\]\n]+)\]:[ \t]*(.*)(?:\n|$)/.exec(src)
 
@@ -429,12 +430,13 @@ export const DefinitionList = Node.create({
   markdownTokenizer: {
     name: 'definitionList',
     level: 'block',
-    start: (src: string) => {
-      const match = src.match(/^[^\s:\n][^\n]*\n:[ \t]+/m)
-
-      return match?.index ?? -1
-    },
+    start: memoizedBlockStart((src: string) => src.match(/^[^\s:\n][^\n]*\n:[ \t]+/m)?.index ?? -1),
     tokenize(src: string, _tokens: MarkdownToken[], lexer: MarkdownLexerConfiguration) {
+      // Fast reject before splitting the whole remaining source: marked calls
+      // this per block, so an unconditional split is O(n^2) on large documents.
+      if (!/^[^\s:\n][^\n]*\n:[ \t]+/.test(src)) {
+        return undefined
+      }
       const lines = src.split('\n')
       const items: DefinitionListItemToken[] = []
       let cursor = 0
