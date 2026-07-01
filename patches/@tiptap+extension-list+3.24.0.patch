@@ -1,0 +1,24 @@
+diff --git a/node_modules/@tiptap/extension-list/dist/index.cjs b/node_modules/@tiptap/extension-list/dist/index.cjs
+index 0847629..04d0729 100644
+--- a/node_modules/@tiptap/extension-list/dist/index.cjs
++++ b/node_modules/@tiptap/extension-list/dist/index.cjs
+@@ -772,6 +772,7 @@ var OrderedList = import_core9.Node.create({
+     },
+     tokenize: (src, _tokens, lexer) => {
+       var _a;
++      if (!/^\s*\d+\.\s+/.test(src)) return undefined;
+       const lines = src.split("\n");
+       const [listItems, consumed] = collectOrderedListItems(lines);
+       if (listItems.length === 0) {
+diff --git a/node_modules/@tiptap/extension-list/dist/index.js b/node_modules/@tiptap/extension-list/dist/index.js
+index dc0618e..6cad368 100644
+--- a/node_modules/@tiptap/extension-list/dist/index.js
++++ b/node_modules/@tiptap/extension-list/dist/index.js
+@@ -742,6 +742,7 @@ var OrderedList = Node3.create({
+     },
+     tokenize: (src, _tokens, lexer) => {
+       var _a;
++      if (!/^\s*\d+\.\s+/.test(src)) return undefined;
+       const lines = src.split("\n");
+       const [listItems, consumed] = collectOrderedListItems(lines);
+       if (listItems.length === 0) {
