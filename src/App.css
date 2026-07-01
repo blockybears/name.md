@@ -1305,6 +1305,15 @@ input {
 
 .markdown-surface img {
   max-width: 100%;
+  /* Reserve space + show a placeholder tint until the image paints, so a doc
+   *  with external images lays its text out immediately instead of collapsing
+   *  and reflowing as each image loads. An opaque image paints over the tint. */
+  min-height: 1.6em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  /* Style the alt text shown for a not-yet-loaded or broken image. */
+  color: var(--muted);
+  font-size: 0.9em;
 }
 
 .markdown-surface .collapsible {

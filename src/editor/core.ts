@@ -90,7 +90,12 @@ export function createMarkdownExtensions() {
     JsonFlow,
     ExcalidrawDrawing,
     SketchDrawing,
-    Image,
+    // Lazy-load + async-decode images so a document with many external images
+    // shows its text immediately (and placeholders) instead of blocking while
+    // every image is fetched and decoded.
+    Image.configure({
+      HTMLAttributes: { loading: 'lazy', decoding: 'async' },
+    }),
     TaskList,
     TaskItem.configure({ nested: true }),
     MarkdownTable.configure({
