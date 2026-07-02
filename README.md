@@ -18,6 +18,15 @@ It is designed for local-first writing, with optional GitHub-backed document lib
   charts, flowcharts, and mind maps. The drawing locks to a clean read view in
   the document and unlocks to a full editor in place.
 - **New: collapsible sections** and **callouts** content blocks.
+- **New: document map.** A left-side outline drawer listing the document's
+  headings (indented by level). It stays open until closed or a heading is
+  chosen, then scrolls that section to the top of the editor and hides.
+- **Fix: large files open fast.** Opening big documents (a 1 MB file took
+  30–40 s) was quadratic in the Markdown tokenizers; parsing is now linear, so
+  the same file opens in well under a second.
+- **Fix: documents with external images no longer freeze.** Images lazy-load
+  and decode asynchronously, so the text appears immediately with placeholders
+  instead of blocking while every linked image is fetched.
 - **Fix: GitHub OAuth client ID is now baked in.** It's no longer an editable
   setting — connecting to GitHub works out of the box.
 - **Fix: GitHub sign-in timeout.** The device-flow login now polls immediately
@@ -34,6 +43,7 @@ It is designed for local-first writing, with optional GitHub-backed document lib
   connectors, freehand, and text, plus structured diagrams (Gantt with a
   critical-path/dependency model, charts, flowcharts, mind maps) aimed at
   project-management brainstorming
+- **Document map** outline drawer for jumping between headings
 - Local file editing with open, save, rename, move, and delete actions
 - Local folder libraries for browsing Markdown collections
 - Optional GitHub library support using your own repository (OAuth client ID is
