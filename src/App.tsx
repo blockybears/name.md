@@ -88,6 +88,8 @@ import {
   LibraryExplorer,
   SaveSyncIndicator,
 } from './library/LibraryExplorer'
+import { DocumentMap } from './DocumentMap'
+import { collectHeadings } from './documentOutline'
 import { createDirectLocalFile, directLocalLibrary } from './library/localProvider'
 import { getStartupFilePaths, isTauriRuntime, isUriPath, readTextPath, writeTextPath } from './library/localFiles'
 import { getLibraryProvider } from './library/providers'
@@ -610,6 +612,7 @@ function App() {
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [libraryDrawerOpen, setLibraryDrawerOpen] = useState(false)
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false)
+  const [docMapOpen, setDocMapOpen] = useState(false)
   const [githubAuth, setGithubAuth] = useState<GitHubAuthState | null>(loadGitHubAuth)
   // Baked-in OAuth client ID — not a user setting.
   const githubClientId = loadGitHubClientId()
@@ -749,6 +752,36 @@ function App() {
     document.addEventListener('keydown', closeOnEscape)
     return () => document.removeEventListener('keydown', closeOnEscape)
   }, [libraryDrawerOpen])
+
+  useEffect(() => {
+    if (!docMapOpen) {
+      return
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDocMapOpen(false)
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [docMapOpen])
+
+  // Jump to a heading: scroll its section to the top of the view, place the
+  // caret there, and close the map (so it behaves like a table of contents).
+  const scrollToHeading = useCallback(
+    (pos: number) => {
+      setDocMapOpen(false)
+      if (!editor) {
+        return
+      }
+      const dom = editor.view.nodeDOM(pos)
+      if (dom instanceof HTMLElement) {
+        dom.scrollIntoView({ block: 'start', behavior: 'auto' })
+      }
+      editor.chain().setTextSelection(pos + 1).focus(undefined, { scrollIntoView: false }).run()
+    },
+    [editor],
+  )
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -2050,17 +2083,29 @@ function App() {
         </div>
       )}
 
+      {docMapOpen && (
+        <div className="library-drawer-layer" onMouseDown={() => setDocMapOpen(false)}>
+          <div onMouseDown={(event) => event.stopPropagation()}>
+            <DocumentMap headings={collectHeadings(editor)} onSelect={scrollToHeading} onClose={() => setDocMapOpen(false)} />
+          </div>
+        </div>
+      )}
+
       <header className="topbar">
         <div className="file-group">
           {mobile && (
-            <button type="button" className="mobile-library-button" onClick={() => setMobileLibraryOpen(true)}>
-              <LibraryIcon aria-hidden="true" size={16} />
-              <span>Library</span>
-            </button>
+            <>
+              <button type="button" className="mobile-library-button" onClick={() => setMobileLibraryOpen(true)}>
+                <LibraryIcon aria-hidden="true" size={16} />
+                <span>Library</span>
+              </button>
+              <IconButton icon={ListTree} label="Document map" onClick={() => setDocMapOpen(true)} />
+            </>
           )}
           {!mobile && (
             <>
               <IconButton icon={LibraryIcon} label="Library" onClick={() => setLibraryDrawerOpen(true)} />
+              <IconButton icon={ListTree} label="Document map" onClick={() => setDocMapOpen(true)} />
               <IconButton icon={FilePlus} label="New file (Ctrl+N)" onClick={() => void handleNewDocument()} />
               <IconButton icon={FolderOpen} label="Open Markdown file (Ctrl+O)" onClick={handleOpen} />
               <IconButton icon={Save} label="Save locally (Ctrl+S)" onClick={handleSave} />
