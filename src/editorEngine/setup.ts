@@ -6,6 +6,7 @@ import { themeExtensions } from './theme'
 import { livePreviewInline } from './livePreview/inline'
 import { customInline } from './livePreview/customInline'
 import { calloutStyling } from './livePreview/callout'
+import { extendedBlocks } from './livePreview/extendedBlocks'
 import { livePreviewBlocks } from './livePreview/blocks'
 import { codeBlockStyling } from './livePreview/codeBlocks'
 import { registerAdvancedTableBlock } from './blocks/advancedTable'
@@ -42,6 +43,7 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     livePreviewInline,
     customInline,
     calloutStyling,
+    extendedBlocks,
     livePreviewBlocks,
     codeBlockStyling,
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
