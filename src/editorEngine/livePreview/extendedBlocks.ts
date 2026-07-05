@@ -50,9 +50,34 @@ function build(view: EditorView): DecorationSet {
   const lastLine = state.doc.lineAt(to).number
   const items: { from: number; to: number; deco: Decoration }[] = []
 
+  let inDetails = false
   for (let n = firstLine; n <= lastLine; n++) {
     const line = state.doc.line(n)
     const text = line.text
+
+    // Collapsible <details>/<summary>: hide the raw tags and style as a boxed
+    // section (content stays editable inline). Note: always-expanded for now.
+    if (/^\s*<details\b[^>]*>\s*$/i.test(text)) {
+      items.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-details-tag' }) })
+      inDetails = true
+      continue
+    }
+    if (/^\s*<\/details>\s*$/i.test(text)) {
+      items.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-details-tag' }) })
+      inDetails = false
+      continue
+    }
+    const summary = /^(\s*<summary>)(.*)(<\/summary>\s*)$/i.exec(text)
+    if (summary) {
+      items.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-details-summary' }) })
+      items.push({ from: line.from, to: line.from + summary[1].length, deco: hide })
+      const closeStart = line.from + summary[1].length + summary[2].length
+      items.push({ from: closeStart, to: line.to, deco: hide })
+      continue
+    }
+    if (inDetails && text.trim() !== '') {
+      items.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-details-body' }) })
+    }
 
     // Footnote definition: [^label]: text
     const def = /^\[\^([^\]]+)\]:[ \t]?/.exec(text)

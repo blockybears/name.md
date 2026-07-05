@@ -1905,10 +1905,6 @@ function App() {
   }, [dialogs, editor])
 
   const insertFootnote = useCallback(async () => {
-    if (!editor) {
-      return
-    }
-
     const label = sanitizeFootnoteLabel(await dialogs.requestText({
       title: 'NAME.md',
       label: 'Footnote label',
@@ -1927,6 +1923,15 @@ function App() {
       confirmLabel: 'Insert',
     })
 
+    if (useBetaEngine) {
+      fmt?.insertText(`[^${label}]`)
+      if (note !== null) cmController?.insertText(`\n\n[^${label}]: ${note}\n`)
+      return
+    }
+    if (!editor) {
+      return
+    }
+
     editor.chain().focus().insertContent({
       type: 'footnoteReference',
       attrs: { label },
@@ -1935,13 +1940,9 @@ function App() {
     if (note !== null) {
       editor.chain().focus('end').insertContent(`\n\n[^${label}]: ${note}`, { contentType: 'markdown' }).run()
     }
-  }, [dialogs, editor])
+  }, [dialogs, editor, useBetaEngine, fmt, cmController])
 
   const insertDefinitionList = useCallback(async () => {
-    if (!editor || tableActive) {
-      return
-    }
-
     const term = await dialogs.requestText({
       title: 'NAME.md',
       label: 'Term',
@@ -1960,8 +1961,16 @@ function App() {
       return
     }
 
+    if (useBetaEngine) {
+      fmt?.insertText(`\n${term.trim()}\n: ${definition.trim()}\n`)
+      return
+    }
+    if (!editor || tableActive) {
+      return
+    }
+
     editor.chain().focus().insertContent(`${term.trim()}\n: ${definition.trim()}`, { contentType: 'markdown' }).run()
-  }, [dialogs, editor, tableActive])
+  }, [dialogs, editor, tableActive, useBetaEngine, fmt])
 
   const insertCollapsible = useCallback(() => {
     if (useBetaEngine) {

@@ -30,3 +30,22 @@
   left: 8px;
   color: var(--muted);
 }
+
+.cm-details-tag {
+  display: none !important;
+}
+.cm-details-summary {
+  font-weight: 700;
+  padding: 6px 10px !important;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border-radius: 8px 8px 0 0;
+}
+.cm-details-summary::before {
+  content: '▾ ';
+  color: var(--muted);
+}
+.cm-details-body {
+  border-left: 2px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 5%, transparent);
+  padding-left: 14px !important;
+}
