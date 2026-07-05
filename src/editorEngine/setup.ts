@@ -20,6 +20,8 @@ registerDiagramBlocks()
 export type EditorSetupOptions = {
   /** Called (debounced by CM's own batching) whenever the document text changes. */
   onChange?: (markdown: string) => void
+  /** Called on document OR selection changes (for toolbar active-state refresh). */
+  onStateChange?: () => void
   /** Extra extensions appended last (live-preview, commands, …) — added in later phases. */
   extensions?: Extension[]
 }
@@ -28,7 +30,7 @@ export type EditorSetupOptions = {
 // surface. Deliberately minimal in Phase 1: the markdown language (GFM),
 // soft-wrapping, history, and theming. Live-preview and commands arrive later.
 export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
-  const { onChange, extensions = [] } = options
+  const { onChange, onStateChange, extensions = [] } = options
   return [
     history(),
     drawSelection(),
@@ -46,6 +48,9 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     EditorView.updateListener.of((update) => {
       if (onChange && update.docChanged) {
         onChange(update.state.doc.toString())
+      }
+      if (onStateChange && (update.docChanged || update.selectionSet)) {
+        onStateChange()
       }
     }),
     ...extensions,

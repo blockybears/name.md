@@ -1,6 +1,8 @@
 import { EditorSelection } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { undo, redo } from '@codemirror/commands'
+import { syntaxTree } from '@codemirror/language'
+import type { SyntaxNode } from '@lezer/common'
 
 // A surface-agnostic set of editor actions the toolbar / document map drive, so
 // App.tsx can talk to one interface whether the classic (TipTap) or new (CM6)
@@ -32,6 +34,7 @@ export interface FormatController {
   insertImage(src: string, alt: string, title?: string): void
   insertText(text: string): void
   isActive(name: string): boolean
+  headingLevel(): number
   getHeadings(): OutlineItem[]
   gotoPos(pos: number): void
 }
@@ -182,6 +185,59 @@ function scanHeadings(view: EditorView): OutlineItem[] {
   return items
 }
 
+// ---- active-state queries ----
+
+// Inline formats map to syntax-tree node names; block formats are detected from
+// the current line prefix (or a fenced-code ancestor).
+const INLINE_NODE: Record<string, string> = {
+  bold: 'StrongEmphasis',
+  italic: 'Emphasis',
+  strike: 'Strikethrough',
+  code: 'InlineCode',
+}
+
+function currentHeadingLevel(view: EditorView): number {
+  const line = view.state.doc.lineAt(view.state.selection.main.head)
+  const match = /^(#{1,6})\s/.exec(line.text)
+  return match ? match[1].length : 0
+}
+
+function hasAncestor(view: EditorView, pos: number, names: Set<string>): boolean {
+  let node: SyntaxNode | null = syntaxTree(view.state).resolveInner(pos, -1)
+  while (node) {
+    if (names.has(node.name)) return true
+    node = node.parent
+  }
+  return false
+}
+
+const CODE_BLOCK_NODES = new Set(['FencedCode', 'CodeBlock'])
+
+function isActiveFormat(view: EditorView, name: string): boolean {
+  const pos = view.state.selection.main.head
+  const text = view.state.doc.lineAt(pos).text
+
+  switch (name) {
+    case 'heading':
+      return /^#{1,6}\s/.test(text)
+    case 'blockquote':
+      return /^>/.test(text)
+    case 'taskList':
+      return /^\s*[-*+]\s+\[[ xX]\]/.test(text)
+    case 'bulletList':
+      return /^\s*[-*+]\s/.test(text) && !/^\s*[-*+]\s+\[[ xX]\]/.test(text)
+    case 'orderedList':
+      return /^\s*\d+\.\s/.test(text)
+    case 'paragraph':
+      return !/^\s*(#{1,6}\s|>|[-*+]\s|\d+\.\s|```)/.test(text)
+    case 'codeBlock':
+      return hasAncestor(view, pos, CODE_BLOCK_NODES)
+  }
+
+  const wanted = INLINE_NODE[name]
+  return wanted ? hasAncestor(view, pos, new Set([wanted])) : false
+}
+
 // ---- controller ----
 
 export function createCm6FormatController(view: EditorView): FormatController {
@@ -231,8 +287,8 @@ export function createCm6FormatController(view: EditorView): FormatController {
       view.dispatch({ changes: { from, to, insert: text } })
       view.focus()
     },
-    // Active-state highlighting for the CM6 surface is a later polish.
-    isActive: () => false,
+    isActive: (name: string) => isActiveFormat(view, name),
+    headingLevel: () => currentHeadingLevel(view),
     getHeadings: () => scanHeadings(view),
     gotoPos: (pos: number) => {
       view.dispatch({ selection: EditorSelection.cursor(pos), effects: EditorView.scrollIntoView(pos, { y: 'start' }) })

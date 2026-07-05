@@ -641,6 +641,7 @@ function App() {
     insertImage: (src: string, alt: string, title?: string) => { editor?.chain().focus().setImage({ src, alt, title: title || undefined }).run() },
     insertText: (text: string) => { editor?.chain().focus().insertContent(text).run() },
     isActive: (name: string) => editor?.isActive(name) ?? false,
+    headingLevel: () => (editor?.isActive('heading') ? Number(editor.getAttributes('heading').level) || 0 : 0),
     getHeadings: () => collectHeadings(editor),
     gotoPos: (pos: number) => {
       if (!editor) return
@@ -651,6 +652,18 @@ function App() {
   }), [editor])
   // The active controller for whichever surface is showing.
   const fmt: FormatController | null = useBetaEngine ? cmController : tiptapController
+  // Re-render (so toolbar active-states refresh) when the CM6 selection/doc
+  // changes, coalesced to one update per frame to stay cheap on large docs.
+  const [, bumpEditorState] = useState(0)
+  const stateChangePending = useRef(false)
+  const onEditorStateChange = useCallback(() => {
+    if (stateChangePending.current) return
+    stateChangePending.current = true
+    requestAnimationFrame(() => {
+      stateChangePending.current = false
+      bumpEditorState((v) => v + 1)
+    })
+  }, [])
   const [status, setStatus] = useState('Ready')
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme)
   const [widthMode, setWidthMode] = useState<WidthMode>(getInitialWidthMode)
@@ -717,7 +730,11 @@ function App() {
       library.rootPath === defaultGitHubDocsRoot,
   )
   const tableActive = Boolean(editor?.isActive('table'))
-  const activeHeadingLevel = editor?.isActive('heading') ? editor.getAttributes('heading').level : null
+  const activeHeadingLevel = useBetaEngine
+    ? (cmController?.headingLevel() || null)
+    : editor?.isActive('heading')
+      ? editor.getAttributes('heading').level
+      : null
 
   useEffect(() => {
     configureGitHubProvider(() => githubAuth)
@@ -2472,7 +2489,7 @@ function App() {
 
       <section className={editorClass} style={editorStyle}>
         {useBetaEngine ? (
-          <CmMarkdownEditor value={markdown} onChange={setMarkdown} onController={setCmController} className="cm-host markdown-surface" />
+          <CmMarkdownEditor value={markdown} onChange={setMarkdown} onController={setCmController} onStateChange={onEditorStateChange} className="cm-host markdown-surface" />
         ) : (
           <MarkdownEditor markdown={markdown} resetKey={resetKey} onChange={setMarkdown} onEditorReady={setEditor} />
         )}

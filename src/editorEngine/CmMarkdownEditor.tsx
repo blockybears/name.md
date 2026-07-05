@@ -10,26 +10,33 @@ type CmMarkdownEditorProps = {
   onChange?: (markdown: string) => void
   /** Receives a controller for toolbar / document-map actions (null on unmount). */
   onController?: (controller: FormatController | null) => void
+  /** Fires on document/selection changes (for toolbar active-state refresh). */
+  onStateChange?: () => void
   className?: string
 }
 
 /** Phase 1 CodeMirror 6 markdown editing surface. Live-preview, block widgets,
  *  and toolbar commands are layered on in later phases. */
-export function CmMarkdownEditor({ value, onChange, onController, className }: CmMarkdownEditorProps) {
+export function CmMarkdownEditor({ value, onChange, onController, onStateChange, className }: CmMarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   // Keep the latest callbacks without re-creating the editor on every render.
   const onChangeRef = useRef(onChange)
   const onControllerRef = useRef(onController)
+  const onStateChangeRef = useRef(onStateChange)
   useEffect(() => {
     onChangeRef.current = onChange
     onControllerRef.current = onController
-  }, [onChange, onController])
+    onStateChangeRef.current = onStateChange
+  }, [onChange, onController, onStateChange])
 
   useEffect(() => {
     if (!hostRef.current) return
     const view = new EditorView({
-      state: createEditorState(value, { onChange: (md) => onChangeRef.current?.(md) }),
+      state: createEditorState(value, {
+        onChange: (md) => onChangeRef.current?.(md),
+        onStateChange: () => onStateChangeRef.current?.(),
+      }),
       parent: hostRef.current,
     })
     viewRef.current = view
