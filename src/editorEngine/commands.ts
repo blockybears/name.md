@@ -1,4 +1,4 @@
-import { EditorSelection, type ChangeSpec } from '@codemirror/state'
+import { EditorSelection } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { undo, redo } from '@codemirror/commands'
 
@@ -83,27 +83,81 @@ function selectedLineNumbers(view: EditorView) {
   }
 }
 
-/** Add a line prefix to every selected line, or strip it if all lines already
- *  have it (toggle). `pattern` matches an existing prefix to replace. */
-function toggleLinePrefix(view: EditorView, prefix: string, pattern: RegExp) {
+// Any leading list marker (bullet, number, or task) — used to strip before
+// applying a new one, so bullet↔number↔task conversions replace cleanly.
+const LIST_MARKER_RE = /^(?:[-*+]|\d+\.)[ \t]+(?:\[[ xX]\][ \t]+)?/
+const HEADING_RE = /^#{1,6}[ \t]+/
+const QUOTE_RE = /^>[ \t]?/
+
+function selectedLines(view: EditorView) {
   const { first, last } = selectedLineNumbers(view)
   const lines = []
   for (let n = first; n <= last; n++) lines.push(view.state.doc.line(n))
-  const allHave = lines.every((line) => pattern.test(line.text))
-  const changes: ChangeSpec[] = lines.map((line) => {
-    if (allHave) {
-      return { from: line.from, to: line.to, insert: line.text.replace(pattern, '') }
-    }
-    const stripped = line.text.replace(pattern, '')
-    return { from: line.from, to: line.to, insert: prefix + stripped }
-  })
-  view.dispatch({ changes })
+  return lines
+}
+
+// Apply prefix edits that touch ONLY the marker region at each line start (never
+// the whole line), so the caret stays with its text instead of jumping.
+type PrefixEdit = { from: number; to: number; insert: string }
+function dispatchPrefixEdits(view: EditorView, edits: (PrefixEdit | null)[]) {
+  const changes = edits.filter((edit): edit is PrefixEdit => edit != null && !(edit.from === edit.to && edit.insert === ''))
+  if (changes.length) view.dispatch({ changes })
   view.focus()
 }
 
+type ListKind = 'bullet' | 'ordered' | 'task'
+
+function applyList(view: EditorView, kind: ListKind) {
+  const lines = selectedLines(view)
+  const isKind = (text: string) =>
+    kind === 'bullet'
+      ? /^[-*+][ \t]+(?!\[[ xX]\])/.test(text)
+      : kind === 'ordered'
+        ? /^\d+\.[ \t]+/.test(text)
+        : /^[-*+][ \t]+\[[ xX]\][ \t]+/.test(text)
+  const meaningful = lines.filter((line) => line.text.trim() !== '')
+  const allKind = meaningful.length > 0 && meaningful.every((line) => isKind(line.text))
+  let index = 0
+  dispatchPrefixEdits(
+    view,
+    lines.map((line) => {
+      const match = LIST_MARKER_RE.exec(line.text)
+      const matchLen = match ? match[0].length : 0
+      if (allKind || line.text.trim() === '') {
+        return { from: line.from, to: line.from + matchLen, insert: '' } // toggle off
+      }
+      index += 1
+      const marker = kind === 'bullet' ? '- ' : kind === 'ordered' ? `${index}. ` : '- [ ] '
+      return { from: line.from, to: line.from + matchLen, insert: marker }
+    }),
+  )
+}
+
 function setHeading(view: EditorView, level: number) {
-  const headingPrefix = /^#{1,6}\s+/
-  toggleLinePrefix(view, level > 0 ? `${'#'.repeat(level)} ` : '', headingPrefix)
+  dispatchPrefixEdits(
+    view,
+    selectedLines(view).map((line) => {
+      const match = HEADING_RE.exec(line.text)
+      const matchLen = match ? match[0].length : 0
+      return { from: line.from, to: line.from + matchLen, insert: level > 0 ? `${'#'.repeat(level)} ` : '' }
+    }),
+  )
+}
+
+function toggleBlockquote(view: EditorView) {
+  const lines = selectedLines(view)
+  const meaningful = lines.filter((line) => line.text.trim() !== '')
+  const allQuoted = meaningful.length > 0 && meaningful.every((line) => QUOTE_RE.test(line.text))
+  dispatchPrefixEdits(
+    view,
+    lines.map((line) => {
+      const match = QUOTE_RE.exec(line.text)
+      const matchLen = match ? match[0].length : 0
+      if (allQuoted) return { from: line.from, to: line.from + matchLen, insert: '' }
+      if (matchLen) return null // already quoted
+      return { from: line.from, to: line.from, insert: '> ' }
+    }),
+  )
 }
 
 function insertBlockAtCursor(view: EditorView, text: string) {
@@ -150,10 +204,10 @@ export function createCm6FormatController(view: EditorView): FormatController {
       view.dispatch({ changes: { from, to, insert: '```\n' + sel + '\n```' } })
       view.focus()
     },
-    toggleBlockquote: () => toggleLinePrefix(view, '> ', /^>\s?/),
-    toggleBulletList: () => toggleLinePrefix(view, '- ', /^[-*+]\s+/),
-    toggleOrderedList: () => toggleLinePrefix(view, '1. ', /^\d+\.\s+/),
-    toggleTaskList: () => toggleLinePrefix(view, '- [ ] ', /^[-*+]\s+(\[[ xX]\]\s+)?/),
+    toggleBlockquote: () => toggleBlockquote(view),
+    toggleBulletList: () => applyList(view, 'bullet'),
+    toggleOrderedList: () => applyList(view, 'ordered'),
+    toggleTaskList: () => applyList(view, 'task'),
     setParagraph: () => setHeading(view, 0),
     toggleHeading: (level: number) => setHeading(view, level),
     setHorizontalRule: () => insertBlockAtCursor(view, '---'),

@@ -43,7 +43,7 @@ function buildBlocks(view: EditorView): DecorationSet {
             builder.add(
               first.from,
               last.to,
-              Decoration.replace({ block: true, widget: new TableWidget(state.sliceDoc(first.from, last.to)) }),
+              Decoration.replace({ block: true, widget: new TableWidget(state.sliceDoc(first.from, last.to), first.from) }),
             )
           }
           return false
@@ -87,10 +87,13 @@ const blockWatcher = ViewPlugin.fromClass(
       this.push(view)
     }
     update(update: ViewUpdate) {
+      // Rebuild on edits, scroll, parser progress, and caret moves — but NOT on
+      // range-selection changes (a drag), so blocks don't churn mid-selection.
+      const caretMove = update.selectionSet && update.state.selection.main.empty
       if (
         update.docChanged ||
         update.viewportChanged ||
-        update.selectionSet ||
+        caretMove ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
         this.push(update.view)

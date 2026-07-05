@@ -82,19 +82,21 @@ export class TaskCheckboxWidget extends WidgetType {
   }
 }
 
-/** Rendered plain GFM table (`| a | b |`) shown off the active line; editing the
- *  table reveals its pipe source. Rich cells / sizing come with the advanced
- *  table block (phase 4). */
+/** Rendered plain GFM table (`| a | b |`) shown off the active line. Clicking it
+ *  places the caret in the table so its pipe source is revealed for editing.
+ *  Rich cells / sizing come with the advanced table block. */
 export class TableWidget extends WidgetType {
   readonly src: string
-  constructor(src: string) {
+  readonly from: number
+  constructor(src: string, from: number) {
     super()
     this.src = src
+    this.from = from
   }
   eq(other: TableWidget) {
-    return other.src === this.src
+    return other.src === this.src && other.from === this.from
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const lines = this.src.split('\n').filter((line) => line.trim().startsWith('|'))
     const splitCells = (line: string) =>
       line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim())
@@ -109,6 +111,12 @@ export class TableWidget extends WidgetType {
         tr.appendChild(el)
       })
       table.appendChild(tr)
+    })
+    // Click to edit: drop the caret into the table so it reveals pipe source.
+    table.addEventListener('mousedown', (event) => {
+      event.preventDefault()
+      view.dispatch({ selection: { anchor: this.from } })
+      view.focus()
     })
     return table
   }

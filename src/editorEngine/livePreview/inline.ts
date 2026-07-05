@@ -28,12 +28,14 @@ export const livePreviewInline = ViewPlugin.fromClass(
       this.decorations = buildInline(view)
     }
     update(update: ViewUpdate) {
-      // Rebuild on edits, cursor moves, and scroll — but also when the language
-      // parser advances (large docs parse the new viewport a beat after the
-      // scroll update, via a transaction with none of the flags below set).
+      // Rebuild on edits, scroll, and parser progress (large docs parse the new
+      // viewport a beat after the scroll update). For selection, rebuild only on
+      // caret moves — never during a drag (range selection), so revealing/hiding
+      // markers can't reflow text mid-selection.
+      const caretMove = update.selectionSet && update.state.selection.main.empty
       if (
         update.docChanged ||
-        update.selectionSet ||
+        caretMove ||
         update.viewportChanged ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
@@ -53,11 +55,13 @@ function buildInline(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const { state } = view
 
+  // Reveal raw markdown only on lines holding an empty caret. During a drag /
+  // range selection we reveal nothing, so hiding/showing markers can't reflow
+  // text under the pointer and scramble the selection.
   const activeLines = new Set<number>()
   for (const range of state.selection.ranges) {
-    const first = state.doc.lineAt(range.from).number
-    const last = state.doc.lineAt(range.to).number
-    for (let n = first; n <= last; n++) activeLines.add(n)
+    if (!range.empty) continue
+    activeLines.add(state.doc.lineAt(range.head).number)
   }
   const lineActive = (pos: number) => activeLines.has(state.doc.lineAt(pos).number)
 
