@@ -7,7 +7,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
-import { BulletWidget, HrWidget, ImageWidget } from './widgets'
+import { BulletWidget, HrWidget, ImageWidget, TaskCheckboxWidget } from './widgets'
 
 const hide = Decoration.replace({})
 
@@ -87,12 +87,27 @@ function buildInline(view: EditorView): DecorationSet {
           return false
         }
 
+        if (name === 'TaskMarker') {
+          // `[ ]` / `[x]` → an interactive checkbox (kept live even on the
+          // active line so it's always clickable).
+          const glyph = state.sliceDoc(node.from, node.to)
+          const checked = /x/i.test(glyph)
+          builder.add(node.from, node.to, Decoration.replace({ widget: new TaskCheckboxWidget(checked, node.from, node.to) }))
+          return false
+        }
+
         if (name === 'ListMark') {
-          // Prettify unordered bullets; leave ordered-list numbers as-is.
+          // Prettify unordered bullets; leave ordered-list numbers as-is. On a
+          // task item the checkbox stands in for the bullet, so drop the marker.
           if (!lineActive(node.from)) {
             const glyph = state.sliceDoc(node.from, node.to)
             if (glyph === '-' || glyph === '*' || glyph === '+') {
-              builder.add(node.from, node.to, Decoration.replace({ widget: new BulletWidget() }))
+              const isTaskItem = /^\s*\[[ xX]\]/.test(state.sliceDoc(node.to, node.to + 5))
+              builder.add(
+                node.from,
+                node.to,
+                isTaskItem ? hide : Decoration.replace({ widget: new BulletWidget() }),
+              )
             }
           }
           return false

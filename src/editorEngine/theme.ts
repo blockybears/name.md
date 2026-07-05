@@ -57,6 +57,43 @@ export const editorTheme = EditorView.theme({
     color: 'var(--muted)',
     fontWeight: '700',
   },
+  '.cm-wp-task': {
+    verticalAlign: 'middle',
+    marginRight: '6px',
+    cursor: 'pointer',
+    accentColor: 'var(--accent)',
+  },
+  // Plain GFM table widget
+  '.cm-wp-table': {
+    borderCollapse: 'collapse',
+    margin: '8px 0',
+    fontSize: '0.95em',
+  },
+  '.cm-wp-table th, .cm-wp-table td': {
+    border: '1px solid var(--border)',
+    padding: '6px 12px',
+    textAlign: 'left',
+  },
+  '.cm-wp-table th': {
+    background: 'color-mix(in srgb, var(--muted) 12%, transparent)',
+    fontWeight: '650',
+  },
+  // Fenced code block (stays editable text under a painted background)
+  '.cm-wp-code': {
+    background: 'color-mix(in srgb, var(--muted) 12%, transparent)',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: '0.9em',
+  },
+  '.cm-wp-code-first': {
+    borderTopLeftRadius: '8px',
+    borderTopRightRadius: '8px',
+    paddingTop: '4px',
+  },
+  '.cm-wp-code-last': {
+    borderBottomLeftRadius: '8px',
+    borderBottomRightRadius: '8px',
+    paddingBottom: '4px',
+  },
 })
 
 // Text styling for markdown tokens. Marker glyphs (#, **, `) are hidden by the

@@ -4,6 +4,8 @@ import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirro
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { themeExtensions } from './theme'
 import { livePreviewInline } from './livePreview/inline'
+import { livePreviewBlocks } from './livePreview/blocks'
+import { codeBlockStyling } from './livePreview/codeBlocks'
 
 export type EditorSetupOptions = {
   /** Called (debounced by CM's own batching) whenever the document text changes. */
@@ -26,6 +28,8 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     markdown({ base: markdownLanguage, codeLanguages: [] }),
     themeExtensions,
     livePreviewInline,
+    livePreviewBlocks,
+    codeBlockStyling,
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     EditorView.updateListener.of((update) => {
       if (onChange && update.docChanged) {

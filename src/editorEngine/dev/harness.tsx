@@ -26,7 +26,21 @@ function generateMarkdown(targetBytes: number): string {
       `- First point about ${w(n)}`,
       `- Second point about ${w(n + 2)}`, '',
       '> A blockquote that adds texture to the document flow.', '',
-      ...(n % 6 === 0 ? [`![Figure ${n}](${svg('Figure ' + n)})`, '', '---', ''] : []),
+      `- [x] Done task for ${w(n)}`,
+      `- [ ] Pending task for ${w(n + 1)}`, '',
+      ...(n % 6 === 0
+        ? [
+            `![Figure ${n}](${svg('Figure ' + n)})`, '',
+            `| Task | Owner | Status |`,
+            `| --- | --- | --- |`,
+            `| ${w(n)} build | Alpha | Active |`,
+            `| ${w(n + 1)} ship | Beta | Done |`, '',
+            '```js',
+            `function demo${n}() { return ${n} * 2 }`,
+            '```', '',
+            '---', '',
+          ]
+        : []),
       `${para}.`, '',
     ].join('\n')
     parts.push(block)

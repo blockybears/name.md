@@ -98,14 +98,17 @@ src/editorEngine/
 - **Phase 2 — Live-preview inline.** Port the spike's marker hiding + reveal-on-active-line
   + text styling; prettify bullets/numbers; links; inline images; theme-aware.
   *Milestone: prose reads like the current WYSIWYG.*
-- **Phase 3 — Block widgets (standard markdown).** Tables (render + edit-as-source on
-  focus), horizontal rules, fenced code with syntax highlighting, interactive task-list
-  checkboxes, footnotes, definition lists, blockquote/callout styling.
-  *Milestone: all standard markdown renders WYSIWYG.*
-- **Phase 4 — Custom block widgets.** The React-in-widget bridge (validate lifecycle
-  first). Render sketch / mermaid / excalidraw / json-flow / callout / collapsible from
-  their fences using the **existing** components; click-to-edit opens their editors.
-  *Milestone: parity with current custom blocks.*
+- **Phase 3 — Block widgets (standard markdown).** Block-decoration infrastructure
+  (`StateField` + viewport watcher). Plain **GFM tables** rendered read-styled with
+  edit-as-source on focus; fenced code as an editable styled block; interactive
+  task-list checkboxes. Footnotes / definition lists deferred (were custom nodes).
+  *Milestone: standard markdown renders WYSIWYG; block infra ready for phase 4.*
+- **Phase 4 — Custom block widgets + advanced tables.** The React-in-widget bridge
+  (validate lifecycle first). The **advanced table** block (see Tables below) — the
+  must-have: tab between cells, column resize, rich cells, custom width/height. Then
+  render sketch / mermaid / excalidraw / json-flow / callout / collapsible from their
+  fences using the **existing** components; click-to-edit opens their editors.
+  *Milestone: parity with current custom blocks + advanced tables.*
 - **Phase 5 — Commands, toolbar, doc map, shortcuts.** Reimplement every toolbar action
   as a CM6 command; wire keyboard shortcuts and markdown input rules; rebuild the document
   map on the CM6 syntax tree; implement the `EditorController` fully.
@@ -115,6 +118,27 @@ src/editorEngine/
   then remove `@tiptap/*` + `prosemirror-*` + `src/editor/*` (and the tokenizer patches).
   Update README/changelog, bump version.
   *Milestone: TipTap gone; app ships on the new engine.*
+
+## Tables (must-have; decided)
+
+Two coexisting kinds:
+
+1. **Plain GFM tables** (`| a | b |`) — kept for portability. Rendered read-styled;
+   editing reveals the pipe source. A one-click **"upgrade to advanced table"** converts
+   the selection into the advanced form.
+2. **Advanced table** — a custom fenced block that survives round-trip as text but holds
+   what markdown can't: rich cells (bullet lists, multiple blocks), and **persisted
+   column widths / row heights**. It is a React widget (phase 4) that is a mini table
+   editor: **Tab / Shift+Tab between cells**, **drag-to-resize columns**, add/remove
+   rows & columns.
+
+   ```table
+   {"cols":[{"w":180},{"w":90}],
+    "rows":[{"h":40,"cells":[{"blocks":["- a","- b"]},{"text":"9"}]}]}
+   ```
+
+Non-negotiable: never regress **tab-between-cells** or **column resize** (the previous
+TipTap editor had these). Plain simple tables stay portable; power is opt-in.
 
 ## Verification (every phase)
 
