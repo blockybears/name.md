@@ -8,6 +8,11 @@ import { CmMarkdownEditor } from '../CmMarkdownEditor'
 function generateMarkdown(targetBytes: number): string {
   const words = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore dolore magna aliqua enim minim veniam quis nostrud exercitation'.split(' ')
   const w = (i: number) => words[i % words.length]
+  const svg = (label: string) =>
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='560' height='120'><rect width='560' height='120' rx='10' fill='%23dbeafe'/><text x='24' y='66' font-family='sans-serif' font-size='22' fill='%231e3a8a'>${label}</text></svg>`,
+    )
   const parts: string[] = []
   let bytes = 0
   let n = 0
@@ -17,10 +22,11 @@ function generateMarkdown(targetBytes: number): string {
     const block = [
       `# Section ${n}: ${w(n)} ${w(n + 2)}`, '',
       `## A ${w(n + 1)} subsection`, '',
-      `${para}. This has **${w(n)} bold text** and *${w(n + 1)} italic* and \`inline code\`.`, '',
+      `${para}. This has **${w(n)} bold text** and *${w(n + 1)} italic* and \`inline code\` and a [link to ${w(n + 3)}](https://example.com/${n}).`, '',
       `- First point about ${w(n)}`,
       `- Second point about ${w(n + 2)}`, '',
       '> A blockquote that adds texture to the document flow.', '',
+      ...(n % 6 === 0 ? [`![Figure ${n}](${svg('Figure ' + n)})`, '', '---', ''] : []),
       `${para}.`, '',
     ].join('\n')
     parts.push(block)

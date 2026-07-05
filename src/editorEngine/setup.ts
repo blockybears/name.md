@@ -3,6 +3,7 @@ import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection } f
 import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { themeExtensions } from './theme'
+import { livePreviewInline } from './livePreview/inline'
 
 export type EditorSetupOptions = {
   /** Called (debounced by CM's own batching) whenever the document text changes. */
@@ -24,6 +25,7 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     EditorView.lineWrapping,
     markdown({ base: markdownLanguage, codeLanguages: [] }),
     themeExtensions,
+    livePreviewInline,
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     EditorView.updateListener.of((update) => {
       if (onChange && update.docChanged) {

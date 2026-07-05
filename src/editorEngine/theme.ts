@@ -40,6 +40,23 @@ export const editorTheme = EditorView.theme({
     color: 'var(--muted)',
     border: 'none',
   },
+  // Live-preview widgets
+  '.cm-wp-img': {
+    maxWidth: '100%',
+    borderRadius: '8px',
+    border: '1px solid var(--border)',
+    display: 'block',
+    margin: '6px 0',
+  },
+  '.cm-wp-hr': {
+    border: 'none',
+    borderTop: '2px solid var(--border)',
+    margin: '10px 0',
+  },
+  '.cm-wp-bullet': {
+    color: 'var(--muted)',
+    fontWeight: '700',
+  },
 })
 
 // Text styling for markdown tokens. Marker glyphs (#, **, `) are hidden by the
