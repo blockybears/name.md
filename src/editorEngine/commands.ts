@@ -35,6 +35,9 @@ export interface FormatController {
   insertText(text: string): void
   isActive(name: string): boolean
   headingLevel(): number
+  /** If the caret is inside a link, select it and return its parts (for editing
+   *  via the toolbar, since the source is hidden); else null. */
+  linkAtCursor(): { text: string; href: string; title: string } | null
   getHeadings(): OutlineItem[]
   gotoPos(pos: number): void
 }
@@ -289,6 +292,22 @@ export function createCm6FormatController(view: EditorView): FormatController {
     },
     isActive: (name: string) => isActiveFormat(view, name),
     headingLevel: () => currentHeadingLevel(view),
+    linkAtCursor: () => {
+      const { state } = view
+      const pos = state.selection.main.head
+      const line = state.doc.lineAt(pos)
+      const re = /\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
+      let match: RegExpExecArray | null
+      while ((match = re.exec(line.text)) !== null) {
+        const start = line.from + match.index
+        const end = start + match[0].length
+        if (pos >= start && pos <= end) {
+          view.dispatch({ selection: EditorSelection.range(start, end) })
+          return { text: match[1], href: match[2], title: match[3] ?? '' }
+        }
+      }
+      return null
+    },
     getHeadings: () => scanHeadings(view),
     gotoPos: (pos: number) => {
       view.dispatch({ selection: EditorSelection.cursor(pos), effects: EditorView.scrollIntoView(pos, { y: 'start' }) })

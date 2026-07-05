@@ -642,6 +642,13 @@ function App() {
     insertText: (text: string) => { editor?.chain().focus().insertContent(text).run() },
     isActive: (name: string) => editor?.isActive(name) ?? false,
     headingLevel: () => (editor?.isActive('heading') ? Number(editor.getAttributes('heading').level) || 0 : 0),
+    linkAtCursor: () => {
+      if (!editor || !editor.isActive('link')) return null
+      const attrs = editor.getAttributes('link')
+      editor.chain().extendMarkRange('link').run()
+      const { from, to } = editor.state.selection
+      return { text: editor.state.doc.textBetween(from, to), href: String(attrs.href ?? ''), title: String(attrs.title ?? '') }
+    },
     getHeadings: () => collectHeadings(editor),
     gotoPos: (pos: number) => {
       if (!editor) return
@@ -1767,10 +1774,12 @@ function App() {
 
   const insertLink = useCallback(async () => {
     if (useBetaEngine) {
-      const href = (await dialogs.requestText({ title: 'NAME.md', label: 'Link URL', confirmLabel: 'Next' }))?.trim()
+      // If the caret is in a link, select it and prefill so this edits in place.
+      const existing = fmt?.linkAtCursor() ?? null
+      const href = (await dialogs.requestText({ title: 'NAME.md', label: 'Link URL', defaultValue: existing?.href ?? '', confirmLabel: 'Next' }))?.trim()
       if (!href) return
-      const text = (await dialogs.requestText({ title: 'NAME.md', label: 'Link text', defaultValue: href, confirmLabel: 'Insert' }))?.trim()
-      fmt?.insertLink(text || href, href)
+      const text = (await dialogs.requestText({ title: 'NAME.md', label: 'Link text', defaultValue: existing?.text || href, confirmLabel: existing ? 'Update' : 'Insert' }))?.trim()
+      fmt?.insertLink(text || href, href, existing?.title || undefined)
       return
     }
     if (!editor) {
@@ -2365,19 +2374,19 @@ function App() {
 
       {mobile && mobileFormatbarOpen && (
         <nav className="formatbar compact-formatbar" aria-label="Formatting controls">
-          <IconButton icon={Undo2} label="Undo" onClick={() => editor?.chain().focus().undo().run()} />
-          <IconButton icon={Redo2} label="Redo" onClick={() => editor?.chain().focus().redo().run()} />
+          <IconButton icon={Undo2} label="Undo" onClick={() => fmt?.undo()} />
+          <IconButton icon={Redo2} label="Redo" onClick={() => fmt?.redo()} />
           <span className="toolbar-separator" aria-hidden="true" />
           <ToolbarDropdown
             id="heading"
             icon={Heading}
             label="Heading styles"
-            active={editor?.isActive('heading')}
+            active={fmt?.isActive('heading')}
             disabled={tableActive}
             openMenu={openToolbarMenu}
             setOpenMenu={setOpenToolbarMenu}
           >
-            <ToolbarMenuItem icon={Pilcrow} label="Paragraph" active={editor?.isActive('paragraph')} onClick={setParagraph} />
+            <ToolbarMenuItem icon={Pilcrow} label="Paragraph" active={fmt?.isActive('paragraph')} onClick={setParagraph} />
             {[1, 2, 3, 4, 5, 6].map((level) => (
               <ToolbarMenuItem
                 key={level}
@@ -2399,56 +2408,54 @@ function App() {
             icon={Bold}
             label="Text format"
             active={
-              editor?.isActive('bold') ||
-              editor?.isActive('italic') ||
-              editor?.isActive('strike') ||
-              editor?.isActive('highlight') ||
-              editor?.isActive('subscript') ||
-              editor?.isActive('superscript')
+              fmt?.isActive('bold') ||
+              fmt?.isActive('italic') ||
+              fmt?.isActive('strike')
             }
             openMenu={openToolbarMenu}
             setOpenMenu={setOpenToolbarMenu}
           >
-            <ToolbarMenuItem icon={Bold} label="Bold" active={editor?.isActive('bold')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleBold().run())} />
-            <ToolbarMenuItem icon={Italic} label="Italic" active={editor?.isActive('italic')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleItalic().run())} />
-            <ToolbarMenuItem icon={Strikethrough} label="Strikethrough" active={editor?.isActive('strike')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleStrike().run())} />
-            <ToolbarMenuItem icon={Underline} label="Underline" active={editor?.isActive('underline')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('underline').run())} />
-            <ToolbarMenuItem icon={Highlighter} label="Highlight" active={editor?.isActive('highlight')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('highlight').run())} />
-            <ToolbarMenuItem icon={Subscript} label="Subscript" active={editor?.isActive('subscript')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('subscript').run())} />
-            <ToolbarMenuItem icon={Superscript} label="Superscript" active={editor?.isActive('superscript')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('superscript').run())} />
-            <ToolbarMenuItem icon={Keyboard} label="Keyboard key" active={editor?.isActive('keyboardKey')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleMark('keyboardKey').run())} />
+            <ToolbarMenuItem icon={Bold} label="Bold" active={fmt?.isActive('bold')} onClick={() => runToolbarAction(() => fmt?.toggleBold())} />
+            <ToolbarMenuItem icon={Italic} label="Italic" active={fmt?.isActive('italic')} onClick={() => runToolbarAction(() => fmt?.toggleItalic())} />
+            <ToolbarMenuItem icon={Strikethrough} label="Strikethrough" active={fmt?.isActive('strike')} onClick={() => runToolbarAction(() => fmt?.toggleStrike())} />
+            <ToolbarMenuItem icon={Underline} label="Underline" onClick={() => runToolbarAction(() => fmt?.toggleUnderline())} />
+            <ToolbarMenuItem icon={Highlighter} label="Highlight" onClick={() => runToolbarAction(() => fmt?.toggleHighlight())} />
+            <ToolbarMenuItem icon={Subscript} label="Subscript" onClick={() => runToolbarAction(() => fmt?.toggleSubscript())} />
+            <ToolbarMenuItem icon={Superscript} label="Superscript" onClick={() => runToolbarAction(() => fmt?.toggleSuperscript())} />
+            <ToolbarMenuItem icon={Keyboard} label="Keyboard key" onClick={() => runToolbarAction(() => fmt?.toggleKbd())} />
           </ToolbarDropdown>
           <ToolbarDropdown
             id="block"
             icon={Code2}
             label="Code and blocks"
-            active={editor?.isActive('code') || editor?.isActive('codeBlock') || editor?.isActive('blockquote')}
+            active={fmt?.isActive('code') || fmt?.isActive('codeBlock') || fmt?.isActive('blockquote')}
             openMenu={openToolbarMenu}
             setOpenMenu={setOpenToolbarMenu}
           >
-            <ToolbarMenuItem icon={Code} label="Inline code" active={editor?.isActive('code')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleCode().run())} />
-            <ToolbarMenuItem icon={Code2} label="Code block" disabled={tableActive} active={editor?.isActive('codeBlock')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleCodeBlock().run())} />
-            <ToolbarMenuItem icon={Quote} label="Blockquote" disabled={tableActive} active={editor?.isActive('blockquote')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleBlockquote().run())} />
+            <ToolbarMenuItem icon={Code} label="Inline code" active={fmt?.isActive('code')} onClick={() => runToolbarAction(() => fmt?.toggleInlineCode())} />
+            <ToolbarMenuItem icon={Code2} label="Code block" disabled={tableActive} active={fmt?.isActive('codeBlock')} onClick={() => runToolbarAction(() => fmt?.toggleCodeBlock())} />
+            <ToolbarMenuItem icon={Quote} label="Blockquote" disabled={tableActive} active={fmt?.isActive('blockquote')} onClick={() => runToolbarAction(() => fmt?.toggleBlockquote())} />
           </ToolbarDropdown>
           <ToolbarDropdown
             id="list"
             icon={List}
             label="Lists"
             disabled={tableActive}
-            active={editor?.isActive('bulletList') || editor?.isActive('orderedList') || editor?.isActive('taskList')}
+            active={fmt?.isActive('bulletList') || fmt?.isActive('orderedList') || fmt?.isActive('taskList')}
             openMenu={openToolbarMenu}
             setOpenMenu={setOpenToolbarMenu}
           >
-            <ToolbarMenuItem icon={List} label="Bullet list" active={editor?.isActive('bulletList')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleBulletList().run())} />
-            <ToolbarMenuItem icon={ListOrdered} label="Numbered list" active={editor?.isActive('orderedList')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleOrderedList().run())} />
-            <ToolbarMenuItem icon={ListChecks} label="Task list" active={editor?.isActive('taskList')} onClick={() => runToolbarAction(() => editor?.chain().focus().toggleTaskList().run())} />
+            <ToolbarMenuItem icon={List} label="Bullet list" active={fmt?.isActive('bulletList')} onClick={() => runToolbarAction(() => fmt?.toggleBulletList())} />
+            <ToolbarMenuItem icon={ListOrdered} label="Numbered list" active={fmt?.isActive('orderedList')} onClick={() => runToolbarAction(() => fmt?.toggleOrderedList())} />
+            <ToolbarMenuItem icon={ListChecks} label="Task list" active={fmt?.isActive('taskList')} onClick={() => runToolbarAction(() => fmt?.toggleTaskList())} />
           </ToolbarDropdown>
           <ToolbarDropdown id="table" icon={Table2} label="Table" active={tableActive} openMenu={openToolbarMenu} setOpenMenu={setOpenToolbarMenu}>
-            <ToolbarMenuItem icon={Table2} label="Insert table" disabled={tableActive} onClick={() => runToolbarAction(() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())} />
+            <ToolbarMenuItem icon={Table2} label="Insert table" disabled={tableActive} onClick={() => runToolbarAction(() => fmt?.insertTable())} />
+            <ToolbarMenuItem icon={TableProperties} label="Advanced table" disabled={tableActive} onClick={() => runToolbarAction(() => fmt?.insertAdvancedTable())} />
             <ToolbarMenuItem icon={Trash2} label="Delete table" disabled={!tableActive} onClick={() => runToolbarAction(() => editor?.chain().focus().deleteTable().run())} />
           </ToolbarDropdown>
           <ToolbarDropdown id="misc" icon={NotebookTabs} label="Insert and extras" openMenu={openToolbarMenu} setOpenMenu={setOpenToolbarMenu} menuClassName="toolbar-menu-wide">
-            <ToolbarMenuItem icon={Minus} label="Horizontal rule" disabled={tableActive} onClick={() => runToolbarAction(() => editor?.chain().focus().setHorizontalRule().run())} />
+            <ToolbarMenuItem icon={Minus} label="Horizontal rule" disabled={tableActive} onClick={() => runToolbarAction(() => fmt?.setHorizontalRule())} />
             <ToolbarMenuItem icon={NotebookTabs} label="Insert footnote" onClick={() => runToolbarAction(insertFootnote)} />
             <ToolbarMenuItem icon={ListTree} label="Insert definition list" disabled={tableActive} onClick={() => runToolbarAction(insertDefinitionList)} />
             <ToolbarMenuItem icon={ChevronsDownUp} label="Insert collapsible section" disabled={tableActive} onClick={() => runToolbarAction(insertCollapsible)} />
