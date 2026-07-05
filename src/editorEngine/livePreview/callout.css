@@ -1,0 +1,35 @@
+.cm-callout {
+  --callout: var(--accent);
+  background: color-mix(in srgb, var(--callout) 10%, transparent);
+  border-left: 3px solid var(--callout);
+  padding-left: 14px !important;
+}
+.cm-callout-first {
+  padding-top: 8px !important;
+  border-top-right-radius: 8px;
+}
+.cm-callout-last {
+  padding-bottom: 8px !important;
+  border-bottom-right-radius: 8px;
+}
+
+.cm-callout-note { --callout: #3b82f6; }
+.cm-callout-tip { --callout: #10b981; }
+.cm-callout-important { --callout: #8b5cf6; }
+.cm-callout-warning { --callout: #f59e0b; }
+.cm-callout-caution { --callout: #ef4444; }
+
+.cm-callout-label {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--callout);
+  margin-right: 6px;
+}
+.cm-callout-label-note { color: #3b82f6; }
+.cm-callout-label-tip { color: #10b981; }
+.cm-callout-label-important { color: #8b5cf6; }
+.cm-callout-label-warning { color: #f59e0b; }
+.cm-callout-label-caution { color: #ef4444; }

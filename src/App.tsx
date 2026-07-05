@@ -1938,6 +1938,10 @@ function App() {
   }, [dialogs, editor, tableActive])
 
   const insertCollapsible = useCallback(() => {
+    if (useBetaEngine) {
+      fmt?.insertText('\n<details>\n<summary>Summary</summary>\n\nDetails here.\n\n</details>\n')
+      return
+    }
     if (!editor || tableActive) {
       return
     }
@@ -1954,9 +1958,13 @@ function App() {
         ],
       })
       .run()
-  }, [editor, tableActive])
+  }, [editor, tableActive, useBetaEngine, fmt])
 
   const insertCallout = useCallback(() => {
+    if (useBetaEngine) {
+      fmt?.insertText('\n> [!NOTE]\n> Your note here.\n')
+      return
+    }
     if (!editor || tableActive) {
       return
     }
@@ -1970,15 +1978,19 @@ function App() {
         content: [{ type: 'paragraph' }],
       })
       .run()
-  }, [editor, tableActive])
+  }, [editor, tableActive, useBetaEngine, fmt])
 
   const insertSketch = useCallback(() => {
+    if (useBetaEngine) {
+      fmt?.insertText('\n```sketch\n\n```\n')
+      return
+    }
     if (!editor || tableActive) {
       return
     }
 
     editor.chain().focus().insertContent({ type: 'sketchDrawing', attrs: { code: '' } }).run()
-  }, [editor, tableActive])
+  }, [editor, tableActive, useBetaEngine, fmt])
 
   const runToolbarAction = useCallback((action: () => unknown) => {
     void action()

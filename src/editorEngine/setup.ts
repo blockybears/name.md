@@ -5,12 +5,17 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { themeExtensions } from './theme'
 import { livePreviewInline } from './livePreview/inline'
 import { customInline } from './livePreview/customInline'
+import { calloutStyling } from './livePreview/callout'
 import { livePreviewBlocks } from './livePreview/blocks'
 import { codeBlockStyling } from './livePreview/codeBlocks'
 import { registerAdvancedTableBlock } from './blocks/advancedTable'
+import { registerSketchBlock } from './blocks/sketchBlock'
+import { registerDiagramBlocks } from './blocks/diagramBlocks'
 
-// Register built-in custom fenced blocks (```table, …) once.
+// Register built-in custom fenced blocks (```table, ```sketch, …) once.
 registerAdvancedTableBlock()
+registerSketchBlock()
+registerDiagramBlocks()
 
 export type EditorSetupOptions = {
   /** Called (debounced by CM's own batching) whenever the document text changes. */
@@ -34,6 +39,7 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     themeExtensions,
     livePreviewInline,
     customInline,
+    calloutStyling,
     livePreviewBlocks,
     codeBlockStyling,
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),

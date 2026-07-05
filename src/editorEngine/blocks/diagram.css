@@ -1,0 +1,62 @@
+.ee-diagram {
+  margin: 10px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--editor-bg);
+}
+
+.ee-diagram-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+}
+
+.ee-diagram-toolbar button {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--chrome);
+  color: var(--text);
+  cursor: pointer;
+}
+.ee-diagram-toolbar button:hover {
+  border-color: var(--accent);
+}
+
+.ee-diagram-source {
+  width: 100%;
+  min-height: 160px;
+  border: 0;
+  padding: 12px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  color: var(--text);
+  background: transparent;
+  outline: none;
+}
+
+.ee-diagram-preview {
+  padding: 12px;
+  overflow: auto;
+}
+
+.ee-mermaid {
+  display: flex;
+  justify-content: center;
+}
+.ee-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.ee-diagram-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
