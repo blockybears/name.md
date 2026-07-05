@@ -1,9 +1,9 @@
 import { RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
-import { TableWidget } from './widgets'
 import { ReactBlockWidget } from '../blocks/reactWidget'
 import { getBlockRenderer } from '../blocks/registry'
+import { gfmTableRenderer } from '../blocks/gfmTable'
 
 // CodeMirror forbids block decorations from view plugins, so block widgets live
 // in a state field. A tiny watcher plugin rebuilds them for the current viewport
@@ -21,10 +21,6 @@ const blockField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 })
 
-function rangeActive(state: EditorView['state'], from: number, to: number): boolean {
-  return state.selection.ranges.some((range) => range.to >= from && range.from <= to)
-}
-
 function buildBlocks(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const { state } = view
@@ -38,14 +34,15 @@ function buildBlocks(view: EditorView): DecorationSet {
         if (node.name === 'Table') {
           const first = state.doc.lineAt(node.from)
           const last = state.doc.lineAt(node.to)
-          // Show pipe source while the cursor is inside the table.
-          if (!rangeActive(state, first.from, last.to)) {
-            builder.add(
-              first.from,
-              last.to,
-              Decoration.replace({ block: true, widget: new TableWidget(state.sliceDoc(first.from, last.to), first.from) }),
-            )
-          }
+          // Always render an editable WYSIWYG grid — never raw pipe source.
+          builder.add(
+            first.from,
+            last.to,
+            Decoration.replace({
+              block: true,
+              widget: new ReactBlockWidget('gfmtable', state.sliceDoc(first.from, last.to), first.from, last.to, gfmTableRenderer),
+            }),
+          )
           return false
         }
 
@@ -55,20 +52,18 @@ function buildBlocks(view: EditorView): DecorationSet {
           const renderer = getBlockRenderer(info)
           if (renderer) {
             const last = state.doc.lineAt(node.to)
-            if (!rangeActive(state, first.from, last.to)) {
-              // Body = the lines between the opening and closing fences.
-              const bodyStart = state.doc.line(first.number + 1)
-              const bodyEnd = last.number - 1 >= bodyStart.number ? state.doc.line(last.number - 1) : null
-              const body = bodyEnd ? state.sliceDoc(bodyStart.from, bodyEnd.to) : ''
-              builder.add(
-                first.from,
-                last.to,
-                Decoration.replace({
-                  block: true,
-                  widget: new ReactBlockWidget(info, body, first.from, last.to, renderer),
-                }),
-              )
-            }
+            // Body = the lines between the opening and closing fences.
+            const bodyStart = state.doc.line(first.number + 1)
+            const bodyEnd = last.number - 1 >= bodyStart.number ? state.doc.line(last.number - 1) : null
+            const body = bodyEnd ? state.sliceDoc(bodyStart.from, bodyEnd.to) : ''
+            builder.add(
+              first.from,
+              last.to,
+              Decoration.replace({
+                block: true,
+                widget: new ReactBlockWidget(info, body, first.from, last.to, renderer),
+              }),
+            )
           }
           return false
         }
@@ -87,13 +82,11 @@ const blockWatcher = ViewPlugin.fromClass(
       this.push(view)
     }
     update(update: ViewUpdate) {
-      // Rebuild on edits, scroll, parser progress, and caret moves — but NOT on
-      // range-selection changes (a drag), so blocks don't churn mid-selection.
-      const caretMove = update.selectionSet && update.state.selection.main.empty
+      // Blocks render unconditionally (no cursor reveal), so rebuild only on
+      // edits, scroll, and parser progress — never on selection.
       if (
         update.docChanged ||
         update.viewportChanged ||
-        caretMove ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
         this.push(update.view)

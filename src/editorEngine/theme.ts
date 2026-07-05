@@ -29,11 +29,13 @@ export const editorTheme = EditorView.theme({
   '&.cm-focused .cm-cursor': {
     borderLeftColor: 'var(--accent)',
   },
+  // A neutral, low-opacity tint (derived from the text colour) so selected text
+  // stays readable in every theme — a bright accent wash-out was the problem.
   '.cm-selectionBackground, ::selection': {
-    backgroundColor: 'color-mix(in srgb, var(--accent) 22%, transparent)',
+    backgroundColor: 'color-mix(in srgb, var(--text) 14%, transparent)',
   },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'color-mix(in srgb, var(--accent) 26%, transparent)',
+    backgroundColor: 'color-mix(in srgb, var(--text) 18%, transparent)',
   },
   '.cm-gutters': {
     backgroundColor: 'transparent',

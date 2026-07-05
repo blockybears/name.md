@@ -47,7 +47,7 @@ function cloneModel(model: TableModel): TableModel {
 
 // An uncontrolled cell: seeds its text once on mount and never re-reads it, so
 // parent re-renders (from typing elsewhere) can't disturb the caret.
-function Cell({
+export function Cell({
   initialText,
   cellKey,
   onText,
