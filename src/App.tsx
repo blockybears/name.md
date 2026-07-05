@@ -46,6 +46,7 @@ import {
   Sun,
   Superscript,
   Table2,
+  TableProperties,
   Trash2,
   Type as TypeIcon,
   Underline,
@@ -72,7 +73,7 @@ import './App.css'
 import { AppDialogHost } from './dialogs/AppDialogs'
 import { useAppDialogs } from './dialogs/useAppDialogs'
 import { getStarterMarkdown, MarkdownEditor } from './editor/MarkdownEditor'
-import { CmMarkdownEditor } from './editorEngine'
+import { CmMarkdownEditor, type FormatController } from './editorEngine'
 import { setSketchDeleteConfirmer } from './editor/sketchDrawing'
 import { normalizeHeadingId, sanitizeFootnoteLabel } from './editor/extendedMarkdown'
 import {
@@ -609,6 +610,47 @@ function App() {
       return false
     }
   })
+  const [cmController, setCmController] = useState<FormatController | null>(null)
+  // A TipTap-backed implementation of the same controller the CM6 engine
+  // provides, so the toolbar and document map drive one interface regardless of
+  // which editing surface is active.
+  const tiptapController = useMemo<FormatController>(() => ({
+    focus: () => { editor?.chain().focus().run() },
+    undo: () => { editor?.chain().focus().undo().run() },
+    redo: () => { editor?.chain().focus().redo().run() },
+    toggleBold: () => { editor?.chain().focus().toggleBold().run() },
+    toggleItalic: () => { editor?.chain().focus().toggleItalic().run() },
+    toggleStrike: () => { editor?.chain().focus().toggleStrike().run() },
+    toggleUnderline: () => { editor?.chain().focus().toggleMark('underline').run() },
+    toggleHighlight: () => { editor?.chain().focus().toggleMark('highlight').run() },
+    toggleSubscript: () => { editor?.chain().focus().toggleMark('subscript').run() },
+    toggleSuperscript: () => { editor?.chain().focus().toggleMark('superscript').run() },
+    toggleKbd: () => { editor?.chain().focus().toggleMark('keyboardKey').run() },
+    toggleInlineCode: () => { editor?.chain().focus().toggleCode().run() },
+    toggleCodeBlock: () => { editor?.chain().focus().toggleCodeBlock().run() },
+    toggleBlockquote: () => { editor?.chain().focus().toggleBlockquote().run() },
+    toggleBulletList: () => { editor?.chain().focus().toggleBulletList().run() },
+    toggleOrderedList: () => { editor?.chain().focus().toggleOrderedList().run() },
+    toggleTaskList: () => { editor?.chain().focus().toggleTaskList().run() },
+    setParagraph: () => { editor?.chain().focus().setParagraph().run() },
+    toggleHeading: (level: number) => { editor?.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run() },
+    setHorizontalRule: () => { editor?.chain().focus().setHorizontalRule().run() },
+    insertTable: () => { editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+    insertAdvancedTable: () => { editor?.chain().focus().insertContent('\n```table\n{"cols":[{"w":180},{"w":180},{"w":180}],"rows":[{"header":true,"cells":[{"text":"Column A"},{"text":"Column B"},{"text":"Column C"}]},{"cells":[{"text":""},{"text":""},{"text":""}]}]}\n```\n', { contentType: 'markdown' }).run() },
+    insertLink: (text: string, href: string, title?: string) => { editor?.chain().focus().insertContent(`[${text || href}](${href}${title ? ` "${title}"` : ''})`, { contentType: 'markdown' }).run() },
+    insertImage: (src: string, alt: string, title?: string) => { editor?.chain().focus().setImage({ src, alt, title: title || undefined }).run() },
+    insertText: (text: string) => { editor?.chain().focus().insertContent(text).run() },
+    isActive: (name: string) => editor?.isActive(name) ?? false,
+    getHeadings: () => collectHeadings(editor),
+    gotoPos: (pos: number) => {
+      if (!editor) return
+      const dom = editor.view.nodeDOM(pos)
+      if (dom instanceof HTMLElement) dom.scrollIntoView({ block: 'start', behavior: 'auto' })
+      editor.chain().setTextSelection(pos + 1).focus(undefined, { scrollIntoView: false }).run()
+    },
+  }), [editor])
+  // The active controller for whichever surface is showing.
+  const fmt: FormatController | null = useBetaEngine ? cmController : tiptapController
   const [status, setStatus] = useState('Ready')
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme)
   const [widthMode, setWidthMode] = useState<WidthMode>(getInitialWidthMode)
@@ -781,16 +823,9 @@ function App() {
   const scrollToHeading = useCallback(
     (pos: number) => {
       setDocMapOpen(false)
-      if (!editor) {
-        return
-      }
-      const dom = editor.view.nodeDOM(pos)
-      if (dom instanceof HTMLElement) {
-        dom.scrollIntoView({ block: 'start', behavior: 'auto' })
-      }
-      editor.chain().setTextSelection(pos + 1).focus(undefined, { scrollIntoView: false }).run()
+      fmt?.gotoPos(pos)
     },
-    [editor],
+    [fmt],
   )
 
   useEffect(() => {
@@ -1714,6 +1749,13 @@ function App() {
   }, [githubAuth?.login])
 
   const insertLink = useCallback(async () => {
+    if (useBetaEngine) {
+      const href = (await dialogs.requestText({ title: 'NAME.md', label: 'Link URL', confirmLabel: 'Next' }))?.trim()
+      if (!href) return
+      const text = (await dialogs.requestText({ title: 'NAME.md', label: 'Link text', defaultValue: href, confirmLabel: 'Insert' }))?.trim()
+      fmt?.insertLink(text || href, href)
+      return
+    }
     if (!editor) {
       return
     }
@@ -1761,7 +1803,7 @@ function App() {
     }))?.trim()
 
     editor.chain().focus().extendMarkRange('link').setLink({ href, title: title || null }).run()
-  }, [dialogs, editor])
+  }, [dialogs, editor, fmt, useBetaEngine])
 
   const insertImage = useCallback(async () => {
     if (tableActive) {
@@ -1789,19 +1831,19 @@ function App() {
         defaultValue: '',
         confirmLabel: 'Insert',
       }) ?? ''
-      editor?.chain().focus().setImage({ src, alt, title: title.trim() || undefined }).run()
+      fmt?.insertImage(src, alt, title.trim() || undefined)
     }
-  }, [currentFile, currentLibrary, dialogs, editor, tableActive])
+  }, [currentFile, currentLibrary, dialogs, tableActive, fmt])
 
   const setParagraph = useCallback(() => {
-    editor?.chain().focus().setParagraph().run()
+    fmt?.setParagraph()
     setOpenToolbarMenu(null)
-  }, [editor])
+  }, [fmt])
 
   const toggleHeading = useCallback((level: 1 | 2 | 3 | 4 | 5 | 6) => {
-    editor?.chain().focus().toggleHeading({ level }).run()
+    fmt?.toggleHeading(level)
     setOpenToolbarMenu(null)
-  }, [editor])
+  }, [fmt])
 
   const setHeadingId = useCallback(async () => {
     if (!editor) {
@@ -2096,7 +2138,7 @@ function App() {
       {docMapOpen && (
         <div className="library-drawer-layer" onMouseDown={() => setDocMapOpen(false)}>
           <div onMouseDown={(event) => event.stopPropagation()}>
-            <DocumentMap headings={collectHeadings(editor)} onSelect={scrollToHeading} onClose={() => setDocMapOpen(false)} />
+            <DocumentMap headings={fmt?.getHeadings() ?? []} onSelect={scrollToHeading} onClose={() => setDocMapOpen(false)} />
           </div>
         </div>
       )}
@@ -2252,27 +2294,28 @@ function App() {
               onClick={() => runToolbarAction(setHeadingId)}
             />
           </ToolbarDropdown>
-          <IconButton icon={Bold} label="Bold" active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} />
-          <IconButton icon={Italic} label="Italic" active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} />
-          <IconButton icon={Strikethrough} label="Strikethrough" active={editor?.isActive('strike')} onClick={() => editor?.chain().focus().toggleStrike().run()} />
-          <IconButton icon={Underline} label="Underline" active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleMark('underline').run()} />
-          <IconButton icon={Highlighter} label="Highlight" active={editor?.isActive('highlight')} onClick={() => editor?.chain().focus().toggleMark('highlight').run()} />
-          <IconButton icon={Subscript} label="Subscript" active={editor?.isActive('subscript')} onClick={() => editor?.chain().focus().toggleMark('subscript').run()} />
-          <IconButton icon={Superscript} label="Superscript" active={editor?.isActive('superscript')} onClick={() => editor?.chain().focus().toggleMark('superscript').run()} />
-          <IconButton icon={Keyboard} label="Keyboard key" active={editor?.isActive('keyboardKey')} onClick={() => editor?.chain().focus().toggleMark('keyboardKey').run()} />
+          <IconButton icon={Bold} label="Bold" active={fmt?.isActive('bold')} onClick={() => fmt?.toggleBold()} />
+          <IconButton icon={Italic} label="Italic" active={fmt?.isActive('italic')} onClick={() => fmt?.toggleItalic()} />
+          <IconButton icon={Strikethrough} label="Strikethrough" active={fmt?.isActive('strike')} onClick={() => fmt?.toggleStrike()} />
+          <IconButton icon={Underline} label="Underline" active={fmt?.isActive('underline')} onClick={() => fmt?.toggleUnderline()} />
+          <IconButton icon={Highlighter} label="Highlight" active={fmt?.isActive('highlight')} onClick={() => fmt?.toggleHighlight()} />
+          <IconButton icon={Subscript} label="Subscript" active={fmt?.isActive('subscript')} onClick={() => fmt?.toggleSubscript()} />
+          <IconButton icon={Superscript} label="Superscript" active={fmt?.isActive('superscript')} onClick={() => fmt?.toggleSuperscript()} />
+          <IconButton icon={Keyboard} label="Keyboard key" active={fmt?.isActive('keyboardKey')} onClick={() => fmt?.toggleKbd()} />
           <span className="toolbar-separator" aria-hidden="true" />
-          <IconButton icon={Code} label="Inline code" active={editor?.isActive('code')} onClick={() => editor?.chain().focus().toggleCode().run()} />
-          <IconButton icon={Code2} label="Code block" disabled={tableActive} active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} />
-          <IconButton icon={Quote} label="Blockquote" disabled={tableActive} active={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()} />
+          <IconButton icon={Code} label="Inline code" active={fmt?.isActive('code')} onClick={() => fmt?.toggleInlineCode()} />
+          <IconButton icon={Code2} label="Code block" disabled={tableActive} active={fmt?.isActive('codeBlock')} onClick={() => fmt?.toggleCodeBlock()} />
+          <IconButton icon={Quote} label="Blockquote" disabled={tableActive} active={fmt?.isActive('blockquote')} onClick={() => fmt?.toggleBlockquote()} />
           <span className="toolbar-separator" aria-hidden="true" />
-          <IconButton icon={List} label="Bullet list" disabled={tableActive} active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} />
-          <IconButton icon={ListOrdered} label="Numbered list" disabled={tableActive} active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} />
-          <IconButton icon={ListChecks} label="Task list" disabled={tableActive} active={editor?.isActive('taskList')} onClick={() => editor?.chain().focus().toggleTaskList().run()} />
+          <IconButton icon={List} label="Bullet list" disabled={tableActive} active={fmt?.isActive('bulletList')} onClick={() => fmt?.toggleBulletList()} />
+          <IconButton icon={ListOrdered} label="Numbered list" disabled={tableActive} active={fmt?.isActive('orderedList')} onClick={() => fmt?.toggleOrderedList()} />
+          <IconButton icon={ListChecks} label="Task list" disabled={tableActive} active={fmt?.isActive('taskList')} onClick={() => fmt?.toggleTaskList()} />
           <span className="toolbar-separator" aria-hidden="true" />
           <IconButton icon={Link2} label="Insert link" onClick={insertLink} />
           <IconButton icon={Image} label="Insert image" disabled={tableActive} onClick={insertImage} />
-          <IconButton icon={Minus} label="Horizontal rule" disabled={tableActive} onClick={() => editor?.chain().focus().setHorizontalRule().run()} />
-          <IconButton icon={Table2} label="Insert table" disabled={tableActive} onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} />
+          <IconButton icon={Minus} label="Horizontal rule" disabled={tableActive} onClick={() => fmt?.setHorizontalRule()} />
+          <IconButton icon={Table2} label="Insert table" disabled={tableActive} onClick={() => fmt?.insertTable()} />
+          <IconButton icon={TableProperties} label="Advanced table" disabled={tableActive} onClick={() => fmt?.insertAdvancedTable()} />
           <IconButton icon={Trash2} label="Delete table" disabled={!tableActive} onClick={() => editor?.chain().focus().deleteTable().run()} />
           <ToolbarDropdown
             id="misc"
@@ -2417,7 +2460,7 @@ function App() {
 
       <section className={editorClass} style={editorStyle}>
         {useBetaEngine ? (
-          <CmMarkdownEditor value={markdown} onChange={setMarkdown} className="cm-host markdown-surface" />
+          <CmMarkdownEditor value={markdown} onChange={setMarkdown} onController={setCmController} className="cm-host markdown-surface" />
         ) : (
           <MarkdownEditor markdown={markdown} resetKey={resetKey} onChange={setMarkdown} onEditorReady={setEditor} />
         )}

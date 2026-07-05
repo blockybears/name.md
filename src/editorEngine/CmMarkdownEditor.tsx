@@ -1,25 +1,30 @@
 import { useEffect, useRef } from 'react'
 import { EditorView } from '@codemirror/view'
 import { createEditorState } from './setup'
+import { createCm6FormatController, type FormatController } from './commands'
 
 type CmMarkdownEditorProps = {
   /** Markdown source. Changing this from outside (e.g. opening a file) replaces
    *  the document; edits the user makes are reported via onChange. */
   value: string
   onChange?: (markdown: string) => void
+  /** Receives a controller for toolbar / document-map actions (null on unmount). */
+  onController?: (controller: FormatController | null) => void
   className?: string
 }
 
 /** Phase 1 CodeMirror 6 markdown editing surface. Live-preview, block widgets,
  *  and toolbar commands are layered on in later phases. */
-export function CmMarkdownEditor({ value, onChange, className }: CmMarkdownEditorProps) {
+export function CmMarkdownEditor({ value, onChange, onController, className }: CmMarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
-  // Keep the latest onChange without re-creating the editor on every render.
+  // Keep the latest callbacks without re-creating the editor on every render.
   const onChangeRef = useRef(onChange)
+  const onControllerRef = useRef(onController)
   useEffect(() => {
     onChangeRef.current = onChange
-  }, [onChange])
+    onControllerRef.current = onController
+  }, [onChange, onController])
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -28,7 +33,9 @@ export function CmMarkdownEditor({ value, onChange, className }: CmMarkdownEdito
       parent: hostRef.current,
     })
     viewRef.current = view
+    onControllerRef.current?.(createCm6FormatController(view))
     return () => {
+      onControllerRef.current?.(null)
       view.destroy()
       viewRef.current = null
     }
