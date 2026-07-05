@@ -6,6 +6,10 @@ import { themeExtensions } from './theme'
 import { livePreviewInline } from './livePreview/inline'
 import { livePreviewBlocks } from './livePreview/blocks'
 import { codeBlockStyling } from './livePreview/codeBlocks'
+import { registerAdvancedTableBlock } from './blocks/advancedTable'
+
+// Register built-in custom fenced blocks (```table, …) once.
+registerAdvancedTableBlock()
 
 export type EditorSetupOptions = {
   /** Called (debounced by CM's own batching) whenever the document text changes. */
