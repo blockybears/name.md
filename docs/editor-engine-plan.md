@@ -119,6 +119,37 @@ src/editorEngine/
   Update README/changelog, bump version.
   *Milestone: TipTap gone; app ships on the new engine.*
 
+## Status (as of the parity pass)
+
+The CM6 engine is wired into the app behind a **statusbar "Editor: Beta (CM6)"
+toggle** and has reached functional parity for day-to-day use. Done:
+
+- Foundation, theme, live-preview (phases 1–3). **Full-time WYSIWYG**: markers
+  are always hidden, formatting is toolbar-driven (no active-line source reveal);
+  selection is stable; dark-mode selection fixed.
+- Inline formats: bold, italic, strike, **underline, highlight, kbd, sub/sup**,
+  inline code.
+- Blocks: headings, bullet/numbered/task lists, blockquote, code block, rule,
+  images.
+- **Tables**: GFM tables render as an editable WYSIWYG grid (tab, add/del
+  row+col) writing back pipe markdown; the **advanced ```table** adds column
+  resize + row height + rich cells.
+- **Custom blocks**: `sketch` (the drawing engine, inline canvas),
+  `mermaid`/`excalidraw`/`json-flow` (edit/preview), callouts (`> [!NOTE]`),
+  footnotes, definition lists, collapsibles (`<details>`, always-expanded).
+- Toolbar + **document map** driven through a shared `FormatController` (both
+  desktop and mobile bars); **active-state highlighting**; **link editing** via
+  the toolbar (source is hidden).
+- Perf preserved: 5MB opens in ~30ms, ~60fps scroll, ~300 DOM nodes.
+
+**Remaining:**
+- **Phase 6 cutover** (make Beta the default, remove `@tiptap/*` + `prosemirror-*`
+  + `src/editor/*`) — deferred pending sign-off; the toggle keeps Classic as the
+  safety net until then.
+- Polish: collapse toggle for `<details>`; button active-state for the custom
+  inline formats (highlight/underline/…); GFM table column widths (needs the
+  advanced table).
+
 ## Tables (must-have; decided)
 
 Two coexisting kinds:
