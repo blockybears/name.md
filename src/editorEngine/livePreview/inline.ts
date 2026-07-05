@@ -61,7 +61,9 @@ function buildInline(view: EditorView): DecorationSet {
   }
   const lineActive = (pos: number) => activeLines.has(state.doc.lineAt(pos).number)
 
-  for (const { from, to } of view.visibleRanges) {
+  // Single contiguous viewport, not gapped visibleRanges (see codeBlocks.ts).
+  const { from, to } = view.viewport
+  {
     syntaxTree(state).iterate({
       from,
       to,

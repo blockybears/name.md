@@ -2,6 +2,8 @@ import { RangeSetBuilder, StateEffect, StateField, type Extension } from '@codem
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
 import { TableWidget } from './widgets'
+import { ReactBlockWidget } from '../blocks/reactWidget'
+import { getBlockRenderer } from '../blocks/registry'
 
 // CodeMirror forbids block decorations from view plugins, so block widgets live
 // in a state field. A tiny watcher plugin rebuilds them for the current viewport
@@ -26,23 +28,52 @@ function rangeActive(state: EditorView['state'], from: number, to: number): bool
 function buildBlocks(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const { state } = view
-  for (const { from, to } of view.visibleRanges) {
+  // Single contiguous viewport, not gapped visibleRanges (see codeBlocks.ts).
+  const { from, to } = view.viewport
+  {
     syntaxTree(state).iterate({
       from,
       to,
       enter: (node) => {
-        if (node.name !== 'Table') return true
-        const first = state.doc.lineAt(node.from)
-        const last = state.doc.lineAt(node.to)
-        // Show pipe source while the cursor is inside the table.
-        if (!rangeActive(state, first.from, last.to)) {
-          builder.add(
-            first.from,
-            last.to,
-            Decoration.replace({ block: true, widget: new TableWidget(state.sliceDoc(first.from, last.to)) }),
-          )
+        if (node.name === 'Table') {
+          const first = state.doc.lineAt(node.from)
+          const last = state.doc.lineAt(node.to)
+          // Show pipe source while the cursor is inside the table.
+          if (!rangeActive(state, first.from, last.to)) {
+            builder.add(
+              first.from,
+              last.to,
+              Decoration.replace({ block: true, widget: new TableWidget(state.sliceDoc(first.from, last.to)) }),
+            )
+          }
+          return false
         }
-        return false
+
+        if (node.name === 'FencedCode') {
+          const first = state.doc.lineAt(node.from)
+          const info = first.text.replace(/^`+/, '').trim()
+          const renderer = getBlockRenderer(info)
+          if (renderer) {
+            const last = state.doc.lineAt(node.to)
+            if (!rangeActive(state, first.from, last.to)) {
+              // Body = the lines between the opening and closing fences.
+              const bodyStart = state.doc.line(first.number + 1)
+              const bodyEnd = last.number - 1 >= bodyStart.number ? state.doc.line(last.number - 1) : null
+              const body = bodyEnd ? state.sliceDoc(bodyStart.from, bodyEnd.to) : ''
+              builder.add(
+                first.from,
+                last.to,
+                Decoration.replace({
+                  block: true,
+                  widget: new ReactBlockWidget(info, body, first.from, last.to, renderer),
+                }),
+              )
+            }
+          }
+          return false
+        }
+
+        return true
       },
     })
   }

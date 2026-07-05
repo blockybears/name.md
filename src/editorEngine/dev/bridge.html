@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>editorEngine react-bridge harness</title>
+    <link rel="stylesheet" href="/src/index.css" />
+    <style>
+      html, body, #root { height: 100%; margin: 0; }
+      #root { max-width: 860px; margin: 0 auto; padding: 24px 32px; box-sizing: border-box; }
+      .cm-editor { height: calc(100dvh - 48px); }
+      .demo-block { border: 1px solid var(--accent); border-radius: 8px; padding: 12px; margin: 8px 0; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+      .demo-block button { font: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/editorEngine/dev/bridge.tsx"></script>
+  </body>
+</html>
