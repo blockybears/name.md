@@ -3,18 +3,24 @@
    + pure model helpers. It is mounted imperatively by a CM6 widget, not via a
    hot-reloadable React tree, so the fast-refresh constraint doesn't apply. */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  AlignCenter, AlignLeft, AlignRight, ArrowLeftToLine, ArrowRightToLine,
+  ArrowUpToLine, ArrowDownToLine, Settings2, Trash2, X,
+} from 'lucide-react'
 import { registerBlock } from './registry'
 import { replaceBlock, type ReactBlockRenderArgs } from './reactWidget'
 import './advancedTable.css'
 
 // The advanced table: a custom ```table fenced block holding JSON that markdown
-// can't express — rich multi-line cells plus persisted column widths and row
-// heights — edited in a mini table editor (tab between cells, drag to resize,
-// add/remove rows & columns). Round-trips as text.
+// can't express — rich multi-line cells plus persisted table/column sizing —
+// edited in a mini table editor (tab between cells, drag to resize, a table
+// toolbar, and a properties panel). Round-trips as text.
 
+type Align = 'left' | 'center' | 'right'
+type Col = { w?: number | null; align?: Align }
 type Cell = { text: string }
 type Row = { h?: number | null; header?: boolean; cells: Cell[] }
-type TableModel = { cols: { w?: number | null }[]; rows: Row[] }
+type TableModel = { width?: number | null; cols: Col[]; rows: Row[] }
 
 const DEFAULT_MODEL: TableModel = {
   cols: [{ w: 180 }, { w: 180 }],
@@ -40,6 +46,7 @@ function serialize(model: TableModel): string {
 
 function cloneModel(model: TableModel): TableModel {
   return {
+    width: model.width,
     cols: model.cols.map((col) => ({ ...col })),
     rows: model.rows.map((row) => ({ ...row, cells: row.cells.map((cell) => ({ ...cell })) })),
   }
@@ -91,11 +98,13 @@ export function RichCell({
   cellKey,
   onText,
   onKeyDown,
+  onFocus,
 }: {
   initialText: string
   cellKey: string
   onText: (text: string) => void
   onKeyDown: (event: React.KeyboardEvent) => void
+  onFocus?: () => void
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const textRef = useRef(initialText)
@@ -114,6 +123,7 @@ export function RichCell({
       ref={ref}
       onFocus={() => {
         if (ref.current) ref.current.textContent = textRef.current // show source to edit
+        onFocus?.()
       }}
       onBlur={() => {
         if (!ref.current) return
@@ -160,41 +170,40 @@ export function Cell({
 
 function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
   const [model, setModel] = useState<TableModel>(() => parseModel(source))
+  const [active, setActive] = useState(false)
+  const [showProps, setShowProps] = useState(false)
+  // The cell the caret is in — drives which row/column the toolbar acts on.
+  const [current, setCurrent] = useState<{ r: number; c: number }>({ r: 0, c: 0 })
   const rootRef = useRef<HTMLDivElement | null>(null)
   const writeTimer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(writeTimer.current), [])
+  const blurTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => { window.clearTimeout(writeTimer.current); window.clearTimeout(blurTimer.current) }, [])
 
-  const writeNow = useCallback(
-    (next: TableModel) => {
-      window.clearTimeout(writeTimer.current)
-      replaceBlock(view, pos, serialize(next))
-    },
-    [view, pos],
-  )
-  const scheduleWrite = useCallback(
-    (next: TableModel) => {
-      window.clearTimeout(writeTimer.current)
-      writeTimer.current = window.setTimeout(() => replaceBlock(view, pos, serialize(next)), 350)
-    },
-    [view, pos],
-  )
+  const writeNow = useCallback((next: TableModel) => { window.clearTimeout(writeTimer.current); replaceBlock(view, pos, serialize(next)) }, [view, pos])
+  const scheduleWrite = useCallback((next: TableModel) => {
+    window.clearTimeout(writeTimer.current)
+    writeTimer.current = window.setTimeout(() => replaceBlock(view, pos, serialize(next)), 350)
+  }, [view, pos])
 
   const colCount = model.cols.length
-  const focusCell = (r: number, c: number) =>
-    rootRef.current?.querySelector<HTMLElement>(`[data-cell="${r}-${c}"]`)?.focus()
+  const focusCell = (r: number, c: number) => rootRef.current?.querySelector<HTMLElement>(`[data-cell="${r}-${c}"]`)?.focus()
+
+  // Show the toolbar/panel while focus is anywhere inside the table (a cell, a
+  // toolbar button, or a properties input).
+  const onCellFocus = (r: number, c: number) => { window.clearTimeout(blurTimer.current); setCurrent({ r, c }); setActive(true) }
+  const onTableBlur = (event: React.FocusEvent) => {
+    const next = event.relatedTarget as Node | null
+    if (next && rootRef.current?.contains(next)) return // focus stayed within the table
+    blurTimer.current = window.setTimeout(() => { setActive(false); setShowProps(false) }, 150)
+  }
+  const keepFocus = (e: React.MouseEvent) => e.preventDefault() // toolbar mousedown shouldn't blur the cell
 
   const onCellKeyDown = (event: React.KeyboardEvent, r: number, c: number) => {
     if (event.key !== 'Tab') return
     event.preventDefault()
     let nr = r
     let nc = c + (event.shiftKey ? -1 : 1)
-    if (nc >= colCount) {
-      nc = 0
-      nr = r + 1
-    } else if (nc < 0) {
-      nc = colCount - 1
-      nr = r - 1
-    }
+    if (nc >= colCount) { nc = 0; nr = r + 1 } else if (nc < 0) { nc = colCount - 1; nr = r - 1 }
     if (nr < 0 || nr >= model.rows.length) return
     focusCell(nr, nc)
   }
@@ -210,22 +219,14 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
     event.preventDefault()
     const startX = event.clientX
     const startW = model.cols[c].w ?? 160
-    const colEl = rootRef.current?.querySelectorAll('col')[c + 1] as HTMLTableColElement | undefined
+    const colEl = rootRef.current?.querySelectorAll('col')[c] as HTMLTableColElement | undefined
     let width = startW
-    const onMove = (e: MouseEvent) => {
-      width = Math.max(48, startW + (e.clientX - startX))
-      if (colEl) colEl.style.width = `${width}px`
-    }
+    const onMove = (e: MouseEvent) => { width = Math.max(48, startW + (e.clientX - startX)); if (colEl) colEl.style.width = `${width}px` }
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      const next = cloneModel(model)
-      next.cols[c].w = width
-      setModel(next)
-      writeNow(next)
+      window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
+      const next = cloneModel(model); next.cols[c].w = width; setModel(next); writeNow(next)
     }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
   }
 
   const startRowResize = (event: React.MouseEvent, r: number) => {
@@ -234,40 +235,83 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
     const rowEl = rootRef.current?.querySelectorAll('tbody tr')[r] as HTMLTableRowElement | undefined
     const startH = rowEl?.getBoundingClientRect().height ?? 32
     let height = startH
-    const onMove = (e: MouseEvent) => {
-      height = Math.max(28, startH + (e.clientY - startY))
-      if (rowEl) rowEl.style.height = `${height}px`
-    }
+    const onMove = (e: MouseEvent) => { height = Math.max(28, startH + (e.clientY - startY)); if (rowEl) rowEl.style.height = `${height}px` }
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      const next = cloneModel(model)
-      next.rows[r].h = height
-      setModel(next)
-      writeNow(next)
+      window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
+      const next = cloneModel(model); next.rows[r].h = height; setModel(next); writeNow(next)
     }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
   }
 
-  const mutate = (fn: (next: TableModel) => void) => {
-    const next = cloneModel(model)
-    fn(next)
-    setModel(next)
-    writeNow(next)
-  }
-  const addColumn = () => mutate((m) => { m.cols.push({ w: 160 }); m.rows.forEach((row) => row.cells.push({ text: '' })) })
-  const addRow = () => mutate((m) => m.rows.push({ cells: m.cols.map(() => ({ text: '' })) }))
-  const deleteColumn = (c: number) => { if (colCount > 1) mutate((m) => { m.cols.splice(c, 1); m.rows.forEach((row) => row.cells.splice(c, 1)) }) }
+  const mutate = (fn: (next: TableModel) => void) => { const next = cloneModel(model); fn(next); setModel(next); writeNow(next) }
+  const addRowAt = (index: number) => mutate((m) => m.rows.splice(index, 0, { cells: m.cols.map(() => ({ text: '' })) }))
+  const addColAt = (index: number) => mutate((m) => { m.cols.splice(index, 0, {}); m.rows.forEach((row) => row.cells.splice(index, 0, { text: '' })) })
   const deleteRow = (r: number) => { if (model.rows.length > 1) mutate((m) => m.rows.splice(r, 1)) }
+  const deleteColumn = (c: number) => { if (colCount > 1) mutate((m) => { m.cols.splice(c, 1); m.rows.forEach((row) => row.cells.splice(c, 1)) }) }
+  const setColAlign = (c: number, align: Align) => mutate((m) => { m.cols[c].align = align })
+  const setColWidth = (c: number, w: number | null) => mutate((m) => {
+    m.cols[c].w = w
+    // Keep the overall width consistent with the columns once any are fixed.
+    m.width = m.cols.every((col) => col.w) ? m.cols.reduce((sum, col) => sum + (col.w ?? 0), 0) : null
+  })
+  const setTableWidth = (w: number | null) => mutate((m) => {
+    m.width = w
+    if (w) {
+      // Rescale columns proportionally so the table becomes exactly `w`.
+      const widths = m.cols.map((col) => col.w ?? 160)
+      const total = widths.reduce((a, b) => a + b, 0) || 1
+      m.cols.forEach((col, i) => { col.w = Math.max(48, Math.round((widths[i] / total) * w)) })
+    }
+  })
 
+  const tbTitle = (t: string) => t
   return (
-    <div className="adv-table-wrap" ref={rootRef}>
-      <table className="adv-table">
+    <div className="adv-table-wrap" ref={rootRef} onBlur={onTableBlur} contentEditable={false}>
+      {active && (
+        <div className="adv-toolbar" onMouseDown={keepFocus}>
+          <button title={tbTitle('Insert row above')} onClick={() => addRowAt(current.r)}><ArrowUpToLine size={15} /></button>
+          <button title={tbTitle('Insert row below')} onClick={() => addRowAt(current.r + 1)}><ArrowDownToLine size={15} /></button>
+          <button title={tbTitle('Delete row')} onClick={() => deleteRow(current.r)}><Trash2 size={15} /></button>
+          <span className="adv-toolbar-sep" />
+          <button title={tbTitle('Insert column left')} onClick={() => addColAt(current.c)}><ArrowLeftToLine size={15} /></button>
+          <button title={tbTitle('Insert column right')} onClick={() => addColAt(current.c + 1)}><ArrowRightToLine size={15} /></button>
+          <button title={tbTitle('Delete column')} onClick={() => deleteColumn(current.c)}><Trash2 size={15} className="adv-icon-col" /></button>
+          <span className="adv-toolbar-sep" />
+          <button title={tbTitle('Align left')} className={model.cols[current.c]?.align === 'left' || !model.cols[current.c]?.align ? 'is-on' : ''} onClick={() => setColAlign(current.c, 'left')}><AlignLeft size={15} /></button>
+          <button title={tbTitle('Align center')} className={model.cols[current.c]?.align === 'center' ? 'is-on' : ''} onClick={() => setColAlign(current.c, 'center')}><AlignCenter size={15} /></button>
+          <button title={tbTitle('Align right')} className={model.cols[current.c]?.align === 'right' ? 'is-on' : ''} onClick={() => setColAlign(current.c, 'right')}><AlignRight size={15} /></button>
+          <span className="adv-toolbar-sep" />
+          <button title={tbTitle('Table properties')} className={showProps ? 'is-on' : ''} onClick={() => setShowProps((v) => !v)}><Settings2 size={15} /></button>
+        </div>
+      )}
+
+      {active && showProps && (
+        <div className="adv-props">
+          <div className="adv-props-head">
+            <span>Table properties</span>
+            <button title="Close" onMouseDown={keepFocus} onClick={() => setShowProps(false)}><X size={14} /></button>
+          </div>
+          <label className="adv-props-row">
+            <span>Table width</span>
+            <input type="number" min={0} placeholder="auto" value={model.width ?? ''} onChange={(e) => setTableWidth(e.target.value ? Number(e.target.value) : null)} />
+            <span className="adv-props-unit">px</span>
+          </label>
+          <div className="adv-props-cols">
+            {model.cols.map((col, c) => (
+              <label className="adv-props-row" key={c}>
+                <span>Col {c + 1} width</span>
+                <input type="number" min={0} placeholder="auto" value={col.w ?? ''} onChange={(e) => setColWidth(c, e.target.value ? Number(e.target.value) : null)} />
+                <span className="adv-props-unit">px</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <table className="adv-table" style={model.width ? { width: model.width, tableLayout: 'fixed' } : undefined}>
         <colgroup>
-          <col style={{ width: 20 }} />
           {model.cols.map((col, c) => (
-            <col key={c} style={{ width: col.w ?? 160 }} />
+            <col key={c} style={col.w ? { width: col.w } : undefined} />
           ))}
         </colgroup>
         <tbody>
@@ -275,27 +319,16 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
             const CellTag = row.header ? 'th' : 'td'
             return (
               <tr key={r} style={row.h ? { height: row.h } : undefined}>
-                <td className="adv-gutter">
-                  <button className="adv-del adv-del-row" title="Delete row" onMouseDown={(e) => { e.preventDefault(); deleteRow(r) }}>
-                    ×
-                  </button>
-                </td>
                 {row.cells.map((cell, c) => (
-                  <CellTag key={c}>
+                  <CellTag key={c} style={model.cols[c]?.align ? { textAlign: model.cols[c].align } : undefined}>
                     <RichCell
                       initialText={cell.text}
                       cellKey={`${r}-${c}`}
                       onText={(text) => onCellText(text, r, c)}
                       onKeyDown={(e) => onCellKeyDown(e, r, c)}
+                      onFocus={() => onCellFocus(r, c)}
                     />
-                    {r === 0 && (
-                      <>
-                        <span className="adv-col-resize" onMouseDown={(e) => startColResize(e, c)} />
-                        <button className="adv-del adv-del-col" title="Delete column" onMouseDown={(ev) => { ev.preventDefault(); deleteColumn(c) }}>
-                          ×
-                        </button>
-                      </>
-                    )}
+                    {r === 0 && <span className="adv-col-resize" onMouseDown={(e) => startColResize(e, c)} />}
                     <span className="adv-row-resize" onMouseDown={(e) => startRowResize(e, r)} />
                   </CellTag>
                 ))}
@@ -304,10 +337,6 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
           })}
         </tbody>
       </table>
-      <div className="adv-controls">
-        <button onMouseDown={(e) => { e.preventDefault(); addRow() }}>+ Row</button>
-        <button onMouseDown={(e) => { e.preventDefault(); addColumn() }}>+ Column</button>
-      </div>
     </div>
   )
 }

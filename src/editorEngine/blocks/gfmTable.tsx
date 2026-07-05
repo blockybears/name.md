@@ -91,11 +91,6 @@ function GfmTable({ view, pos, source }: ReactBlockRenderArgs) {
     const CellTag = isHeader ? 'th' : 'td'
     return (
       <tr key={r}>
-        <td className="adv-gutter">
-          {!isHeader && (
-            <button className="adv-del adv-del-row" title="Delete row" onMouseDown={(e) => { e.preventDefault(); deleteRow(r - 1) }}>×</button>
-          )}
-        </td>
         {cells.map((text, c) => (
           <CellTag key={c}>
             <Cell initialText={text} cellKey={`${r}-${c}`} onText={(value) => onText(value, r, c)} onKeyDown={(e) => onKeyDown(e, r, c)} />
@@ -118,6 +113,7 @@ function GfmTable({ view, pos, source }: ReactBlockRenderArgs) {
       </table>
       <div className="adv-controls">
         <button onMouseDown={(e) => { e.preventDefault(); addRow() }}>+ Row</button>
+        <button onMouseDown={(e) => { e.preventDefault(); deleteRow(model.rows.length - 1) }}>− Row</button>
         <button onMouseDown={(e) => { e.preventDefault(); addColumn() }}>+ Column</button>
       </div>
     </div>
