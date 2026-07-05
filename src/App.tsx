@@ -72,6 +72,7 @@ import './App.css'
 import { AppDialogHost } from './dialogs/AppDialogs'
 import { useAppDialogs } from './dialogs/useAppDialogs'
 import { getStarterMarkdown, MarkdownEditor } from './editor/MarkdownEditor'
+import { CmMarkdownEditor } from './editorEngine'
 import { setSketchDeleteConfirmer } from './editor/sketchDrawing'
 import { normalizeHeadingId, sanitizeFootnoteLabel } from './editor/extendedMarkdown'
 import {
@@ -599,6 +600,15 @@ function App() {
   const [hasOpenDocument, setHasOpenDocument] = useState(() => initialEditorSession.hasOpenDocument)
   const [resetKey, setResetKey] = useState(0)
   const [editor, setEditor] = useState<Editor | null>(null)
+  // Beta: swap the editing surface to the new CodeMirror 6 engine (fast on large
+  // files; advanced tables). Toolbar/doc-map parity is still in progress.
+  const [useBetaEngine, setUseBetaEngine] = useState(() => {
+    try {
+      return localStorage.getItem('namemd.betaEngine') === '1'
+    } catch {
+      return false
+    }
+  })
   const [status, setStatus] = useState('Ready')
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme)
   const [widthMode, setWidthMode] = useState<WidthMode>(getInitialWidthMode)
@@ -2406,14 +2416,39 @@ function App() {
       )}
 
       <section className={editorClass} style={editorStyle}>
-        <MarkdownEditor markdown={markdown} resetKey={resetKey} onChange={setMarkdown} onEditorReady={setEditor} />
+        {useBetaEngine ? (
+          <CmMarkdownEditor value={markdown} onChange={setMarkdown} className="cm-host markdown-surface" />
+        ) : (
+          <MarkdownEditor markdown={markdown} resetKey={resetKey} onChange={setMarkdown} onEditorReady={setEditor} />
+        )}
       </section>
 
       <footer className="statusbar">
         <span className="status-main">
           {fileDisplayName(currentFile)} · {currentProvider} · <SaveSyncIndicator state={currentSaveSyncState} provider={currentLibrary?.provider ?? 'local'} />
         </span>
-        <span>{status} · {zoom}% zoom</span>
+        <span>
+          <button
+            type="button"
+            className="engine-toggle"
+            title="Switch the editing surface. Beta = the new CodeMirror engine (fast large files, advanced tables)."
+            onClick={() => {
+              setUseBetaEngine((on) => {
+                const next = !on
+                try {
+                  localStorage.setItem('namemd.betaEngine', next ? '1' : '0')
+                } catch {
+                  // ignore storage failures
+                }
+                return next
+              })
+            }}
+          >
+            Editor: {useBetaEngine ? 'Beta (CM6)' : 'Classic'}
+          </button>
+          {' · '}
+          {status} · {zoom}% zoom
+        </span>
       </footer>
       {githubSignInModal}
       {dialogHost}

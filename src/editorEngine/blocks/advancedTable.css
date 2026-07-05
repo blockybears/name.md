@@ -33,26 +33,50 @@
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 
-/* Column resize handle sits over the right border of header cells. */
+/* Column resize handle sits over the right border of header cells. It shows a
+ * faint grip line, brightening to the accent colour on hover so it's obvious. */
 .adv-col-resize {
   position: absolute;
   top: 0;
-  right: -3px;
-  width: 7px;
+  right: -4px;
+  width: 9px;
   height: 100%;
   cursor: col-resize;
   z-index: 2;
+}
+.adv-col-resize::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 3px;
+  width: 3px;
+  height: 100%;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  border-radius: 2px;
+}
+.adv-col-resize:hover::after {
+  background: var(--accent);
 }
 
 /* Row resize handle sits over the bottom border. */
 .adv-row-resize {
   position: absolute;
   left: 0;
-  bottom: -3px;
+  bottom: -4px;
   width: 100%;
-  height: 7px;
+  height: 9px;
   cursor: row-resize;
-  z-index: 2;
+  z-index: 1;
+}
+.adv-row-resize:hover::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 3px;
+  width: 100%;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
 }
 
 /* Delete buttons for a column (in its header) and a row (in the gutter). */
