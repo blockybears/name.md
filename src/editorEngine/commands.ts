@@ -44,8 +44,6 @@ export interface FormatController {
 
 export type OutlineItem = { level: number; text: string; pos: number }
 
-const DEFAULT_TABLE = ['| Column A | Column B | Column C |', '| --- | --- | --- |', '| | | |', '| | | |'].join('\n')
-
 const DEFAULT_ADVANCED_TABLE = JSON.stringify({
   cols: [{ w: 180 }, { w: 180 }, { w: 180 }],
   rows: [
@@ -270,7 +268,9 @@ export function createCm6FormatController(view: EditorView): FormatController {
     setParagraph: () => setHeading(view, 0),
     toggleHeading: (level: number) => setHeading(view, level),
     setHorizontalRule: () => insertBlockAtCursor(view, '---'),
-    insertTable: () => insertBlockAtCursor(view, DEFAULT_TABLE),
+    // One table: the capable grid (fixed widths + rich cells). Plain GFM tables
+    // still render (back-compat) but this is what "Insert table" creates.
+    insertTable: () => insertBlockAtCursor(view, '```table\n' + DEFAULT_ADVANCED_TABLE + '\n```'),
     insertAdvancedTable: () => insertBlockAtCursor(view, '```table\n' + DEFAULT_ADVANCED_TABLE + '\n```'),
     insertLink: (text: string, href: string, title?: string) => {
       const label = text || href

@@ -6,7 +6,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
-import { syntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { BulletWidget, HrWidget, ImageWidget, TaskCheckboxWidget } from './widgets'
 
 const hide = Decoration.replace({})
@@ -28,12 +28,13 @@ export const livePreviewInline = ViewPlugin.fromClass(
       this.decorations = buildInline(view)
     }
     update(update: ViewUpdate) {
-      // Full WYSIWYG: markers are ALWAYS hidden, so decorations never depend on
-      // the selection — rebuild only on edits, scroll, and parser progress. This
-      // also makes text selection rock-solid (nothing reflows as the caret/
-      // selection moves).
+      // Markers are always hidden, so decorations don't depend on the selection
+      // — but we still rebuild on selectionSet because it's a cheap way to pick
+      // up parser progress after typing (the output is identical when nothing
+      // changed, so it can't reflow a drag-selection).
       if (
         update.docChanged ||
+        update.selectionSet ||
         update.viewportChanged ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
@@ -56,7 +57,11 @@ function buildInline(view: EditorView): DecorationSet {
   // Single contiguous viewport, not gapped visibleRanges (see codeBlocks.ts).
   // Markers are hidden unconditionally — full WYSIWYG, no active-line reveal.
   const { from, to } = view.viewport
-  syntaxTree(state).iterate({
+  // Use the parsed-to-viewport tree (forcing it if needed) rather than whatever
+  // syntaxTree() has so far, so freshly-typed lines (e.g. new task-list items)
+  // are decorated immediately instead of leaving raw `- [ ]` markers.
+  const tree = ensureSyntaxTree(state, to, 50) ?? syntaxTree(state)
+  tree.iterate({
     from,
     to,
     enter: (node) => {

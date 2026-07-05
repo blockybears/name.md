@@ -45,6 +45,87 @@ function cloneModel(model: TableModel): TableModel {
   }
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// Minimal inline markdown → HTML for cell display (bold, italic, code, strike,
+// highlight). Applied after escaping, so it's safe.
+function inlineMarkdown(text: string): string {
+  return escapeHtml(text)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    .replace(/==([^=]+)==/g, '<mark>$1</mark>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+}
+
+/** Render a cell's markdown (multi-line, with `- ` bullets and inline formats)
+ *  to HTML for display. */
+function renderCellMarkdown(text: string): string {
+  const parts: string[] = []
+  let list: string[] = []
+  const flush = () => {
+    if (list.length) {
+      parts.push('<ul class="adv-cell-list">' + list.map((li) => `<li>${inlineMarkdown(li)}</li>`).join('') + '</ul>')
+      list = []
+    }
+  }
+  for (const line of text.split('\n')) {
+    const bullet = /^[-*]\s+(.*)$/.exec(line)
+    if (bullet) list.push(bullet[1])
+    else {
+      flush()
+      if (line.trim() !== '') parts.push(`<div>${inlineMarkdown(line)}</div>`)
+    }
+  }
+  flush()
+  return parts.join('') || '&nbsp;'
+}
+
+// A rich cell: displays formatted markdown (bullets, bold, italic, code) and, on
+// focus, swaps to the raw markdown source for editing. Uncontrolled — parent
+// re-renders never disturb the caret while editing.
+export function RichCell({
+  initialText,
+  cellKey,
+  onText,
+  onKeyDown,
+}: {
+  initialText: string
+  cellKey: string
+  onText: (text: string) => void
+  onKeyDown: (event: React.KeyboardEvent) => void
+}) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const textRef = useRef(initialText)
+  useEffect(() => {
+    textRef.current = initialText
+    if (ref.current) ref.current.innerHTML = renderCellMarkdown(initialText)
+    // mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <div
+      className="adv-cell"
+      data-cell={cellKey}
+      contentEditable
+      suppressContentEditableWarning
+      ref={ref}
+      onFocus={() => {
+        if (ref.current) ref.current.textContent = textRef.current // show source to edit
+      }}
+      onBlur={() => {
+        if (!ref.current) return
+        textRef.current = ref.current.innerText
+        onText(textRef.current)
+        ref.current.innerHTML = renderCellMarkdown(textRef.current) // re-render formatted
+      }}
+      onKeyDown={onKeyDown}
+    />
+  )
+}
+
 // An uncontrolled cell: seeds its text once on mount and never re-reads it, so
 // parent re-renders (from typing elsewhere) can't disturb the caret.
 export function Cell({
@@ -201,7 +282,7 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
                 </td>
                 {row.cells.map((cell, c) => (
                   <CellTag key={c}>
-                    <Cell
+                    <RichCell
                       initialText={cell.text}
                       cellKey={`${r}-${c}`}
                       onText={(text) => onCellText(text, r, c)}

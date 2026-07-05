@@ -1,7 +1,7 @@
 import { EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection } from '@codemirror/view'
 import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands'
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { markdown, markdownLanguage, insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
 import { themeExtensions } from './theme'
 import { livePreviewInline } from './livePreview/inline'
 import { customInline } from './livePreview/customInline'
@@ -46,7 +46,16 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     extendedBlocks,
     livePreviewBlocks,
     codeBlockStyling,
-    keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+    keymap.of([
+      // Proper, consistent markdown list continuation: Enter continues the list
+      // marker (and clears an empty item); Backspace removes a marker. Bound
+      // ahead of the default Enter/Backspace.
+      { key: 'Enter', run: insertNewlineContinueMarkup },
+      { key: 'Backspace', run: deleteMarkupBackward },
+      ...defaultKeymap,
+      ...historyKeymap,
+      indentWithTab,
+    ]),
     EditorView.updateListener.of((update) => {
       if (onChange && update.docChanged) {
         onChange(update.state.doc.toString())

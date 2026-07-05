@@ -88,10 +88,36 @@ export const editorTheme = EditorView.theme({
     fontSize: '0.75em',
   },
   '.cm-wp-task': {
+    // A compact custom checkbox (appearance:none) sized below the line height so
+    // task lines keep the same spacing as normal lines — the native box was
+    // taller than the line and widened it.
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    width: '0.9em',
+    height: '0.9em',
+    margin: '0 6px 0 0',
     verticalAlign: 'middle',
-    marginRight: '6px',
+    border: '1.5px solid color-mix(in srgb, var(--muted) 70%, transparent)',
+    borderRadius: '3px',
+    background: 'transparent',
     cursor: 'pointer',
-    accentColor: 'var(--accent)',
+    position: 'relative',
+    boxSizing: 'border-box',
+  },
+  '.cm-wp-task:checked': {
+    background: 'var(--accent)',
+    borderColor: 'var(--accent)',
+  },
+  '.cm-wp-task:checked::after': {
+    content: '""',
+    position: 'absolute',
+    left: '0.26em',
+    top: '0.08em',
+    width: '0.2em',
+    height: '0.42em',
+    border: 'solid #fff',
+    borderWidth: '0 0.12em 0.12em 0',
+    transform: 'rotate(45deg)',
   },
   // Plain GFM table widget
   '.cm-wp-table': {

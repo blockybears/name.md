@@ -29,6 +29,28 @@
   word-break: break-word;
 }
 
+.adv-cell-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.adv-cell-list li {
+  margin: 1px 0;
+}
+.adv-cell div {
+  margin: 1px 0;
+}
+.adv-cell code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.adv-cell mark {
+  background: color-mix(in srgb, #facc15 55%, transparent);
+  border-radius: 2px;
+}
+
 .adv-cell:focus {
   box-shadow: inset 0 0 0 2px var(--accent);
 }

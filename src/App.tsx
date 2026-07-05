@@ -46,7 +46,6 @@ import {
   Sun,
   Superscript,
   Table2,
-  TableProperties,
   Trash2,
   Type as TypeIcon,
   Underline,
@@ -2362,7 +2361,6 @@ function App() {
           <IconButton icon={Image} label="Insert image" disabled={tableActive} onClick={insertImage} />
           <IconButton icon={Minus} label="Horizontal rule" disabled={tableActive} onClick={() => fmt?.setHorizontalRule()} />
           <IconButton icon={Table2} label="Insert table" disabled={tableActive} onClick={() => fmt?.insertTable()} />
-          <IconButton icon={TableProperties} label="Advanced table" disabled={tableActive} onClick={() => fmt?.insertAdvancedTable()} />
           <IconButton icon={Trash2} label="Delete table" disabled={!tableActive} onClick={() => editor?.chain().focus().deleteTable().run()} />
           <ToolbarDropdown
             id="misc"
@@ -2460,7 +2458,6 @@ function App() {
           </ToolbarDropdown>
           <ToolbarDropdown id="table" icon={Table2} label="Table" active={tableActive} openMenu={openToolbarMenu} setOpenMenu={setOpenToolbarMenu}>
             <ToolbarMenuItem icon={Table2} label="Insert table" disabled={tableActive} onClick={() => runToolbarAction(() => fmt?.insertTable())} />
-            <ToolbarMenuItem icon={TableProperties} label="Advanced table" disabled={tableActive} onClick={() => runToolbarAction(() => fmt?.insertAdvancedTable())} />
             <ToolbarMenuItem icon={Trash2} label="Delete table" disabled={!tableActive} onClick={() => runToolbarAction(() => editor?.chain().focus().deleteTable().run())} />
           </ToolbarDropdown>
           <ToolbarDropdown id="misc" icon={NotebookTabs} label="Insert and extras" openMenu={openToolbarMenu} setOpenMenu={setOpenToolbarMenu} menuClassName="toolbar-menu-wide">
