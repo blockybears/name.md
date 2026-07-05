@@ -4,6 +4,7 @@ import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirro
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { themeExtensions } from './theme'
 import { livePreviewInline } from './livePreview/inline'
+import { customInline } from './livePreview/customInline'
 import { livePreviewBlocks } from './livePreview/blocks'
 import { codeBlockStyling } from './livePreview/codeBlocks'
 import { registerAdvancedTableBlock } from './blocks/advancedTable'
@@ -32,6 +33,7 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     markdown({ base: markdownLanguage, codeLanguages: [] }),
     themeExtensions,
     livePreviewInline,
+    customInline,
     livePreviewBlocks,
     codeBlockStyling,
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),

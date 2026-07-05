@@ -29,13 +29,14 @@ export const editorTheme = EditorView.theme({
   '&.cm-focused .cm-cursor': {
     borderLeftColor: 'var(--accent)',
   },
-  // A neutral, low-opacity tint (derived from the text colour) so selected text
-  // stays readable in every theme — a bright accent wash-out was the problem.
+  // A translucent, muted slate-blue. Because it is translucent it composites
+  // over whatever background is behind it — darker in dark themes, lighter in
+  // light themes — so it always reads as a distinct selection with legible text.
   '.cm-selectionBackground, ::selection': {
-    backgroundColor: 'color-mix(in srgb, var(--text) 14%, transparent)',
+    backgroundColor: 'rgba(109, 143, 199, 0.4) !important',
   },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'color-mix(in srgb, var(--text) 18%, transparent)',
+    backgroundColor: 'rgba(109, 143, 199, 0.5) !important',
   },
   '.cm-gutters': {
     backgroundColor: 'transparent',
@@ -58,6 +59,33 @@ export const editorTheme = EditorView.theme({
   '.cm-wp-bullet': {
     color: 'var(--muted)',
     fontWeight: '700',
+  },
+  // Custom inline formats (highlight / underline / kbd / sub / sup)
+  '.cm-hl': {
+    background: 'color-mix(in srgb, #facc15 55%, transparent)',
+    borderRadius: '3px',
+    padding: '0 2px',
+  },
+  '.cm-u': {
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
+  },
+  '.cm-kbd': {
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: '0.85em',
+    border: '1px solid var(--border)',
+    borderBottomWidth: '2px',
+    borderRadius: '4px',
+    padding: '0 4px',
+    background: 'color-mix(in srgb, var(--muted) 12%, transparent)',
+  },
+  '.cm-sub': {
+    verticalAlign: 'sub',
+    fontSize: '0.75em',
+  },
+  '.cm-sup': {
+    verticalAlign: 'super',
+    fontSize: '0.75em',
   },
   '.cm-wp-task': {
     verticalAlign: 'middle',
