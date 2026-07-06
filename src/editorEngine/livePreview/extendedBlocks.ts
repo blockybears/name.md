@@ -9,6 +9,19 @@ import './extendedBlocks.css'
 //   - definition lists (Term / : description) → bold term + indented description
 const hide = Decoration.replace({})
 
+class AnchorWidget extends WidgetType {
+  eq() {
+    return true
+  }
+  toDOM() {
+    const span = document.createElement('span')
+    span.className = 'cm-heading-anchor'
+    span.textContent = '#'
+    span.title = 'This heading has a custom id (edit via Set heading ID)'
+    return span
+  }
+}
+
 class SupLabelWidget extends WidgetType {
   readonly text: string
   readonly cls: string
@@ -77,6 +90,15 @@ function build(view: EditorView): DecorationSet {
     }
     if (inDetails && text.trim() !== '') {
       items.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-details-body' }) })
+    }
+
+    // Heading custom id: `## Title {#id}` — hide the {#id} (managed via the
+    // "Set heading ID" toolbar action), showing a small anchor indicator.
+    const hid = /^#{1,6}\s.*?(\{#[\w:.-]+\})[ \t]*$/.exec(text)
+    if (hid) {
+      const idStart = line.from + text.lastIndexOf(hid[1])
+      items.push({ from: idStart, to: line.to, deco: Decoration.replace({ widget: new AnchorWidget() }) })
+      continue
     }
 
     // Footnote definition: [^label]: text

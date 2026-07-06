@@ -49,3 +49,12 @@
   background: color-mix(in srgb, var(--muted) 5%, transparent);
   padding-left: 14px !important;
 }
+
+.cm-heading-anchor {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.7em;
+  vertical-align: super;
+  margin-left: 4px;
+  opacity: 0.6;
+}

@@ -641,6 +641,7 @@ function App() {
     insertText: (text: string) => { editor?.chain().focus().insertContent(text).run() },
     isActive: (name: string) => editor?.isActive(name) ?? false,
     headingLevel: () => (editor?.isActive('heading') ? Number(editor.getAttributes('heading').level) || 0 : 0),
+    focusEnd: () => { editor?.chain().focus('end').run() },
     linkAtCursor: () => {
       if (!editor || !editor.isActive('link')) return null
       const attrs = editor.getAttributes('link')
@@ -648,6 +649,13 @@ function App() {
       const { from, to } = editor.state.selection
       return { text: editor.state.doc.textBetween(from, to), href: String(attrs.href ?? ''), title: String(attrs.title ?? '') }
     },
+    imageAtCursor: () => {
+      if (!editor || !editor.isActive('image')) return null
+      const attrs = editor.getAttributes('image')
+      return { alt: String(attrs.alt ?? ''), src: String(attrs.src ?? ''), title: String(attrs.title ?? '') }
+    },
+    getHeadingId: () => (editor?.isActive('heading') ? String(editor.getAttributes('heading').id ?? '') : ''),
+    setHeadingId: (id: string) => { editor?.chain().focus().updateAttributes('heading', { id: id || null }).run() },
     getHeadings: () => collectHeadings(editor),
     gotoPos: (pos: number) => {
       if (!editor) return
@@ -1016,11 +1024,11 @@ function App() {
   const handleNew = useCallback(() => {
     setDocument('# Untitled\n\n', null)
     setStatus('New file')
-    editor?.commands.focus('end')
+    requestAnimationFrame(() => fmt?.focusEnd())
     if (mobile) {
       setMobileLibraryOpen(false)
     }
-  }, [editor, mobile, setDocument])
+  }, [fmt, mobile, setDocument])
 
   const handleOpen = useCallback(async () => {
     if (!isTauriRuntime()) {
@@ -1836,7 +1844,10 @@ function App() {
       return
     }
 
-    const defaultPath = relativeAssetImagePath(currentFile, currentLibrary)
+    // In Beta, if the caret is on an existing image, select it and prefill so
+    // this edits the image in place (its source is hidden in WYSIWYG).
+    const existing = useBetaEngine ? (fmt?.imageAtCursor() ?? null) : null
+    const defaultPath = existing?.src || relativeAssetImagePath(currentFile, currentLibrary)
     const src = (await dialogs.requestText({
       title: 'NAME.md',
       label: 'Image URL or relative path',
@@ -1847,18 +1858,18 @@ function App() {
       const alt = await dialogs.requestText({
         title: 'NAME.md',
         label: 'Alt text',
-        defaultValue: '',
+        defaultValue: existing?.alt ?? '',
         confirmLabel: 'Next',
       }) ?? ''
       const title = await dialogs.requestText({
         title: 'NAME.md',
         label: 'Image title (optional)',
-        defaultValue: '',
+        defaultValue: existing?.title ?? '',
         confirmLabel: 'Insert',
       }) ?? ''
       fmt?.insertImage(src, alt, title.trim() || undefined)
     }
-  }, [currentFile, currentLibrary, dialogs, tableActive, fmt])
+  }, [currentFile, currentLibrary, dialogs, tableActive, fmt, useBetaEngine])
 
   const setParagraph = useCallback(() => {
     fmt?.setParagraph()
@@ -1871,16 +1882,13 @@ function App() {
   }, [fmt])
 
   const setHeadingId = useCallback(async () => {
-    if (!editor) {
-      return
-    }
-
-    if (!editor.isActive('heading')) {
+    const inHeading = useBetaEngine ? fmt?.isActive('heading') : editor?.isActive('heading')
+    if (!inHeading) {
       setStatus('Place the cursor in a heading before setting an ID')
       return
     }
 
-    const current = editor.getAttributes('heading').id ?? ''
+    const current = useBetaEngine ? (fmt?.getHeadingId() ?? '') : (editor?.getAttributes('heading').id ?? '')
     const value = await dialogs.requestText({
       title: 'NAME.md',
       label: 'Heading ID',
@@ -1899,9 +1907,13 @@ function App() {
       return
     }
 
-    editor.chain().focus().updateAttributes('heading', { id }).run()
+    if (useBetaEngine) {
+      fmt?.setHeadingId(id ?? '')
+    } else {
+      editor?.chain().focus().updateAttributes('heading', { id }).run()
+    }
     setStatus(id ? `Heading ID set to ${id}` : 'Heading ID removed')
-  }, [dialogs, editor])
+  }, [dialogs, editor, useBetaEngine, fmt])
 
   const insertFootnote = useCallback(async () => {
     const label = sanitizeFootnoteLabel(await dialogs.requestText({
@@ -2336,7 +2348,7 @@ function App() {
             <ToolbarMenuItem
               icon={Hash}
               label="Set heading ID"
-              disabled={!editor?.isActive('heading')}
+              disabled={!fmt?.isActive('heading')}
               onClick={() => runToolbarAction(setHeadingId)}
             />
           </ToolbarDropdown>
@@ -2406,7 +2418,7 @@ function App() {
             <ToolbarMenuItem
               icon={Hash}
               label="Set heading ID"
-              disabled={!editor?.isActive('heading')}
+              disabled={!fmt?.isActive('heading')}
               onClick={() => runToolbarAction(setHeadingId)}
             />
           </ToolbarDropdown>
@@ -2425,11 +2437,11 @@ function App() {
             <ToolbarMenuItem icon={Bold} label="Bold" active={fmt?.isActive('bold')} onClick={() => runToolbarAction(() => fmt?.toggleBold())} />
             <ToolbarMenuItem icon={Italic} label="Italic" active={fmt?.isActive('italic')} onClick={() => runToolbarAction(() => fmt?.toggleItalic())} />
             <ToolbarMenuItem icon={Strikethrough} label="Strikethrough" active={fmt?.isActive('strike')} onClick={() => runToolbarAction(() => fmt?.toggleStrike())} />
-            <ToolbarMenuItem icon={Underline} label="Underline" onClick={() => runToolbarAction(() => fmt?.toggleUnderline())} />
-            <ToolbarMenuItem icon={Highlighter} label="Highlight" onClick={() => runToolbarAction(() => fmt?.toggleHighlight())} />
-            <ToolbarMenuItem icon={Subscript} label="Subscript" onClick={() => runToolbarAction(() => fmt?.toggleSubscript())} />
-            <ToolbarMenuItem icon={Superscript} label="Superscript" onClick={() => runToolbarAction(() => fmt?.toggleSuperscript())} />
-            <ToolbarMenuItem icon={Keyboard} label="Keyboard key" onClick={() => runToolbarAction(() => fmt?.toggleKbd())} />
+            <ToolbarMenuItem icon={Underline} label="Underline" active={fmt?.isActive('underline')} onClick={() => runToolbarAction(() => fmt?.toggleUnderline())} />
+            <ToolbarMenuItem icon={Highlighter} label="Highlight" active={fmt?.isActive('highlight')} onClick={() => runToolbarAction(() => fmt?.toggleHighlight())} />
+            <ToolbarMenuItem icon={Subscript} label="Subscript" active={fmt?.isActive('subscript')} onClick={() => runToolbarAction(() => fmt?.toggleSubscript())} />
+            <ToolbarMenuItem icon={Superscript} label="Superscript" active={fmt?.isActive('superscript')} onClick={() => runToolbarAction(() => fmt?.toggleSuperscript())} />
+            <ToolbarMenuItem icon={Keyboard} label="Keyboard key" active={fmt?.isActive('keyboardKey')} onClick={() => runToolbarAction(() => fmt?.toggleKbd())} />
           </ToolbarDropdown>
           <ToolbarDropdown
             id="block"

@@ -35,9 +35,16 @@ export interface FormatController {
   insertText(text: string): void
   isActive(name: string): boolean
   headingLevel(): number
+  focusEnd(): void
   /** If the caret is inside a link, select it and return its parts (for editing
    *  via the toolbar, since the source is hidden); else null. */
   linkAtCursor(): { text: string; href: string; title: string } | null
+  /** If the caret is inside an image, select it and return its parts; else null. */
+  imageAtCursor(): { alt: string; src: string; title: string } | null
+  /** The custom id (`{#id}`) of the heading the caret is in, '' if none/not a heading. */
+  getHeadingId(): string | null
+  /** Set (or clear, with '') the custom id on the caret's heading line. */
+  setHeadingId(id: string): void
   getHeadings(): OutlineItem[]
   gotoPos(pos: number): void
 }
@@ -214,6 +221,28 @@ function hasAncestor(view: EditorView, pos: number, names: Set<string>): boolean
 
 const CODE_BLOCK_NODES = new Set(['FencedCode', 'CodeBlock'])
 
+// Regex-detected inline formats (not in the base grammar): true when the caret
+// sits inside a match on its line.
+const REGEX_FORMAT: Record<string, RegExp> = {
+  highlight: /==[^=\n]+==/g,
+  underline: /<u>[\s\S]*?<\/u>/g,
+  keyboardKey: /<kbd>[\s\S]*?<\/kbd>/g,
+  subscript: /(?<![~\w])~[^~\s][^~\n]*?~(?![~\w])/g,
+  superscript: /(?<![\^\w])\^[^\s^]+?\^(?![\^\w])/g,
+}
+
+function regexFormatActive(view: EditorView, re: RegExp): boolean {
+  const pos = view.state.selection.main.head
+  const line = view.state.doc.lineAt(pos)
+  const rel = pos - line.from
+  re.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = re.exec(line.text)) !== null) {
+    if (rel > match.index && rel < match.index + match[0].length) return true
+  }
+  return false
+}
+
 function isActiveFormat(view: EditorView, name: string): boolean {
   const pos = view.state.selection.main.head
   const text = view.state.doc.lineAt(pos).text
@@ -235,6 +264,7 @@ function isActiveFormat(view: EditorView, name: string): boolean {
       return hasAncestor(view, pos, CODE_BLOCK_NODES)
   }
 
+  if (REGEX_FORMAT[name]) return regexFormatActive(view, REGEX_FORMAT[name])
   const wanted = INLINE_NODE[name]
   return wanted ? hasAncestor(view, pos, new Set([wanted])) : false
 }
@@ -292,11 +322,12 @@ export function createCm6FormatController(view: EditorView): FormatController {
     },
     isActive: (name: string) => isActiveFormat(view, name),
     headingLevel: () => currentHeadingLevel(view),
+    focusEnd: () => { view.dispatch({ selection: EditorSelection.cursor(view.state.doc.length) }); view.focus() },
     linkAtCursor: () => {
       const { state } = view
       const pos = state.selection.main.head
       const line = state.doc.lineAt(pos)
-      const re = /\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
+      const re = /(?<!!)\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
       let match: RegExpExecArray | null
       while ((match = re.exec(line.text)) !== null) {
         const start = line.from + match.index
@@ -307,6 +338,35 @@ export function createCm6FormatController(view: EditorView): FormatController {
         }
       }
       return null
+    },
+    imageAtCursor: () => {
+      const { state } = view
+      const pos = state.selection.main.head
+      const line = state.doc.lineAt(pos)
+      const re = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g
+      let match: RegExpExecArray | null
+      while ((match = re.exec(line.text)) !== null) {
+        const start = line.from + match.index
+        const end = start + match[0].length
+        if (pos >= start && pos <= end) {
+          view.dispatch({ selection: EditorSelection.range(start, end) })
+          return { alt: match[1], src: match[2], title: match[3] ?? '' }
+        }
+      }
+      return null
+    },
+    getHeadingId: () => {
+      const line = view.state.doc.lineAt(view.state.selection.main.head)
+      const match = /\{#([\w:.-]+)\}\s*$/.exec(line.text)
+      return match ? match[1] : ''
+    },
+    setHeadingId: (id: string) => {
+      const line = view.state.doc.lineAt(view.state.selection.main.head)
+      if (!/^#{1,6}\s/.test(line.text)) return
+      let text = line.text.replace(/\s*\{#[\w:.-]+\}\s*$/, '').replace(/\s+$/, '')
+      if (id) text += ` {#${id}}`
+      view.dispatch({ changes: { from: line.from, to: line.to, insert: text } })
+      view.focus()
     },
     getHeadings: () => scanHeadings(view),
     gotoPos: (pos: number) => {
