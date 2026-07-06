@@ -72,7 +72,7 @@ import './App.css'
 import { AppDialogHost } from './dialogs/AppDialogs'
 import { useAppDialogs } from './dialogs/useAppDialogs'
 import { getStarterMarkdown, MarkdownEditor } from './editor/MarkdownEditor'
-import { CmMarkdownEditor, type FormatController } from './editorEngine'
+import { CmMarkdownEditor, setBlockDeleteConfirmer, type FormatController } from './editorEngine'
 import { setSketchDeleteConfirmer } from './editor/sketchDrawing'
 import { normalizeHeadingId, sanitizeFootnoteLabel } from './editor/extendedMarkdown'
 import {
@@ -706,18 +706,23 @@ function App() {
   const { dialog, dialogs, resolveDialog } = useAppDialogs()
 
   // Confirm before a whole drawing is deleted from the document (the canvas's
-  // own Delete still removes only the selected item without a prompt).
+  // own Delete still removes only the selected item without a prompt). Wired for
+  // both the classic (TipTap) and CM6 surfaces.
   useEffect(() => {
-    setSketchDeleteConfirmer(() =>
+    const confirm = () =>
       dialogs.requestConfirmation({
         title: 'NAME.md',
         message: 'Did you mean to delete this drawing?',
         confirmLabel: 'Delete',
         cancelLabel: 'Cancel',
         danger: true,
-      }),
-    )
-    return () => setSketchDeleteConfirmer(null)
+      })
+    setSketchDeleteConfirmer(confirm)
+    setBlockDeleteConfirmer(confirm)
+    return () => {
+      setSketchDeleteConfirmer(null)
+      setBlockDeleteConfirmer(null)
+    }
   }, [dialogs])
 
   const mobile = useIsMobileViewport()

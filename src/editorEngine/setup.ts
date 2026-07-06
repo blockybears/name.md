@@ -1,8 +1,9 @@
-import { EditorState, type Extension } from '@codemirror/state'
+import { EditorState, EditorSelection, type Extension } from '@codemirror/state'
 import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection } from '@codemirror/view'
 import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage, insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
 import { themeExtensions } from './theme'
+import { blockDeleteGuard } from './blockDeleteGuard'
 import { livePreviewInline } from './livePreview/inline'
 import { customInline } from './livePreview/customInline'
 import { calloutStyling } from './livePreview/callout'
@@ -39,6 +40,22 @@ export function buildExtensions(options: EditorSetupOptions = {}): Extension[] {
     rectangularSelection(),
     EditorView.lineWrapping,
     markdown({ base: markdownLanguage, codeLanguages: [] }),
+    // Paste a URL over selected text → turn the selection into a link.
+    EditorView.domEventHandlers({
+      paste(event, view) {
+        const pasted = event.clipboardData?.getData('text/plain')?.trim() ?? ''
+        const sel = view.state.selection.main
+        if (!sel.empty && /^(https?:\/\/|mailto:)\S+$/.test(pasted)) {
+          const label = view.state.sliceDoc(sel.from, sel.to)
+          const insert = `[${label}](${pasted})`
+          view.dispatch({ changes: { from: sel.from, to: sel.to, insert }, selection: EditorSelection.cursor(sel.from + insert.length) })
+          event.preventDefault()
+          return true
+        }
+        return false
+      },
+    }),
+    blockDeleteGuard,
     themeExtensions,
     livePreviewInline,
     customInline,

@@ -26,52 +26,59 @@ function buildBlocks(view: EditorView): DecorationSet {
   const { state } = view
   // Single contiguous viewport, not gapped visibleRanges (see codeBlocks.ts).
   const { from, to } = view.viewport
-  {
-    syntaxTree(state).iterate({
-      from,
-      to,
-      enter: (node) => {
-        if (node.name === 'Table') {
-          const first = state.doc.lineAt(node.from)
+  const docLen = state.doc.length
+  syntaxTree(state).iterate({
+    from,
+    to,
+    enter: (node) => {
+      // Defensive: a stale tree can hand back positions beyond the doc; clamp
+      // and skip rather than crash the whole block layer.
+      if (node.from > docLen || node.to > docLen) return false
+
+      if (node.name === 'Table') {
+        const first = state.doc.lineAt(node.from)
+        const last = state.doc.lineAt(node.to)
+        // Always render an editable WYSIWYG grid — never raw pipe source.
+        builder.add(
+          first.from,
+          last.to,
+          Decoration.replace({
+            block: true,
+            widget: new ReactBlockWidget('gfmtable', state.sliceDoc(first.from, last.to), first.from, last.to, gfmTableRenderer),
+          }),
+        )
+        return false
+      }
+
+      if (node.name === 'FencedCode') {
+        const first = state.doc.lineAt(node.from)
+        const info = first.text.replace(/^`+/, '').trim()
+        const renderer = getBlockRenderer(info)
+        if (renderer) {
           const last = state.doc.lineAt(node.to)
-          // Always render an editable WYSIWYG grid — never raw pipe source.
+          // Body = the lines between the opening and closing fences (guarded so
+          // an in-progress/one-line fence can't index a non-existent line).
+          let body = ''
+          const bodyStartNum = first.number + 1
+          const bodyEndNum = last.number - 1
+          if (bodyStartNum <= bodyEndNum && bodyEndNum <= state.doc.lines) {
+            body = state.sliceDoc(state.doc.line(bodyStartNum).from, state.doc.line(bodyEndNum).to)
+          }
           builder.add(
             first.from,
             last.to,
             Decoration.replace({
               block: true,
-              widget: new ReactBlockWidget('gfmtable', state.sliceDoc(first.from, last.to), first.from, last.to, gfmTableRenderer),
+              widget: new ReactBlockWidget(info, body, first.from, last.to, renderer),
             }),
           )
-          return false
         }
+        return false
+      }
 
-        if (node.name === 'FencedCode') {
-          const first = state.doc.lineAt(node.from)
-          const info = first.text.replace(/^`+/, '').trim()
-          const renderer = getBlockRenderer(info)
-          if (renderer) {
-            const last = state.doc.lineAt(node.to)
-            // Body = the lines between the opening and closing fences.
-            const bodyStart = state.doc.line(first.number + 1)
-            const bodyEnd = last.number - 1 >= bodyStart.number ? state.doc.line(last.number - 1) : null
-            const body = bodyEnd ? state.sliceDoc(bodyStart.from, bodyEnd.to) : ''
-            builder.add(
-              first.from,
-              last.to,
-              Decoration.replace({
-                block: true,
-                widget: new ReactBlockWidget(info, body, first.from, last.to, renderer),
-              }),
-            )
-          }
-          return false
-        }
-
-        return true
-      },
-    })
-  }
+      return true
+    },
+  })
   return builder.finish()
 }
 
