@@ -265,3 +265,7 @@ select.adv-props-unit {
 .adv-controls button:hover {
   border-color: var(--accent);
 }
+
+.adv-toolbar .adv-icon-del {
+  color: #ef4444;
+}

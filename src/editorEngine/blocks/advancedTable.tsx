@@ -257,6 +257,7 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
   const deleteColumn = (c: number) => { if (colCount > 1) mutate((m) => { m.cols.splice(c, 1); m.rows.forEach((row) => row.cells.splice(c, 1)) }) }
   const setColAlign = (c: number, align: Align) => mutate((m) => { m.cols[c].align = align })
   const setColWidth = (c: number, w: number | null, unit: WUnit) => mutate((m) => { m.cols[c].w = w; m.cols[c].unit = unit })
+  const deleteTable = () => replaceBlock(view, pos, '')
   const setTableWidth = (w: number | null, unit: WUnit) => mutate((m) => {
     m.width = w
     m.widthUnit = unit
@@ -287,6 +288,8 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
           <button title={tbTitle('Align right')} className={model.cols[current.c]?.align === 'right' ? 'is-on' : ''} onClick={() => setColAlign(current.c, 'right')}><AlignRight size={15} /></button>
           <span className="adv-toolbar-sep" />
           <button title={tbTitle('Table properties')} className={showProps ? 'is-on' : ''} onClick={() => setShowProps((v) => !v)}><Settings2 size={15} /></button>
+          <span className="adv-toolbar-sep" />
+          <button title={tbTitle('Delete table')} onClick={deleteTable}><Trash2 size={15} className="adv-icon-del" /></button>
         </div>
       )}
 

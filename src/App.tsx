@@ -2318,12 +2318,12 @@ function App() {
             id="heading"
             icon={Heading}
             label="Heading styles"
-            active={editor?.isActive('heading')}
+            active={fmt?.isActive('heading')}
             disabled={tableActive}
             openMenu={openToolbarMenu}
             setOpenMenu={setOpenToolbarMenu}
           >
-            <ToolbarMenuItem icon={Pilcrow} label="Paragraph" active={editor?.isActive('paragraph')} onClick={setParagraph} />
+            <ToolbarMenuItem icon={Pilcrow} label="Paragraph" active={fmt?.isActive('paragraph')} onClick={setParagraph} />
             {[1, 2, 3, 4, 5, 6].map((level) => (
               <ToolbarMenuItem
                 key={level}
