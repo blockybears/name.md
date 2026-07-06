@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view'
 import { undo, redo } from '@codemirror/commands'
 import { syntaxTree } from '@codemirror/language'
 import type { SyntaxNode } from '@lezer/common'
+import { getActiveInlineTarget } from './activeInlineTarget'
 
 // A surface-agnostic set of editor actions the toolbar / document map drive, so
 // App.tsx can talk to one interface whether the classic (TipTap) or new (CM6)
@@ -63,6 +64,12 @@ const DEFAULT_ADVANCED_TABLE = JSON.stringify({
 // ---- primitives ----
 
 function wrapInline(view: EditorView, before: string, after = before) {
+  // If a rich table cell is focused, format its selection instead of the doc.
+  const cell = getActiveInlineTarget()
+  if (cell) {
+    cell.wrap(before, after)
+    return
+  }
   const { state } = view
   const { from, to } = state.selection.main
   const sel = state.sliceDoc(from, to)

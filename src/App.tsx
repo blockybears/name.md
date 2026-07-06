@@ -187,6 +187,9 @@ function IconButton({ active = false, disabled = false, icon: Icon, label, onCli
       data-tooltip={label}
       disabled={disabled}
       title={label}
+      // Don't steal focus from the editor / a focused table cell, so formatting
+      // commands act on the current selection.
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
     >
       <Icon aria-hidden="true" size={17} strokeWidth={2.1} />

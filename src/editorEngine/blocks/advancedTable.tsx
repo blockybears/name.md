@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { registerBlock } from './registry'
 import { replaceBlock, type ReactBlockRenderArgs } from './reactWidget'
+import { setActiveInlineTarget, wrapContentEditableSelection } from '../activeInlineTarget'
 import './advancedTable.css'
 
 // The advanced table: a custom ```table fenced block holding JSON that markdown
@@ -131,8 +132,14 @@ export function RichCell({
       onFocus={() => {
         if (ref.current) ref.current.textContent = textRef.current // show source to edit
         onFocus?.()
+        // Let the toolbar's inline-format buttons wrap this cell's selection.
+        setActiveInlineTarget({
+          wrap: (before, after) =>
+            wrapContentEditableSelection(ref.current, before, after, (src) => { textRef.current = src; onText(src) }),
+        })
       }}
       onBlur={() => {
+        setActiveInlineTarget(null)
         if (!ref.current) return
         textRef.current = ref.current.innerText
         onText(textRef.current)
