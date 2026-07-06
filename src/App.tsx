@@ -2311,8 +2311,8 @@ function App() {
 
       {!mobile && (
         <nav className="formatbar desktop-formatbar" aria-label="Formatting controls">
-          <IconButton icon={Undo2} label="Undo" onClick={() => editor?.chain().focus().undo().run()} />
-          <IconButton icon={Redo2} label="Redo" onClick={() => editor?.chain().focus().redo().run()} />
+          <IconButton icon={Undo2} label="Undo" onClick={() => fmt?.undo()} />
+          <IconButton icon={Redo2} label="Redo" onClick={() => fmt?.redo()} />
           <span className="toolbar-separator" aria-hidden="true" />
           <ToolbarDropdown
             id="heading"
