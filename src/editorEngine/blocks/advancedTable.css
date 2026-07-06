@@ -90,7 +90,7 @@
   color: var(--muted);
 }
 .adv-props-row input {
-  width: 64px;
+  width: 56px;
   height: 26px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -98,9 +98,15 @@
   background: var(--editor-bg);
   color: var(--text);
 }
-.adv-props-unit {
-  color: var(--muted);
+select.adv-props-unit {
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 4px;
+  background: var(--editor-bg);
+  color: var(--text);
   font-size: 0.85em;
+  cursor: pointer;
 }
 
 /* Our sizing (colgroup widths + optional overall width) must win over the app's

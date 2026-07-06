@@ -17,10 +17,16 @@ import './advancedTable.css'
 // toolbar, and a properties panel). Round-trips as text.
 
 type Align = 'left' | 'center' | 'right'
-type Col = { w?: number | null; align?: Align }
+type WUnit = 'px' | '%'
+type Col = { w?: number | null; unit?: WUnit; align?: Align }
 type Cell = { text: string }
 type Row = { h?: number | null; header?: boolean; cells: Cell[] }
-type TableModel = { width?: number | null; cols: Col[]; rows: Row[] }
+type TableModel = { width?: number | null; widthUnit?: WUnit; cols: Col[]; rows: Row[] }
+
+/** A CSS length from a value + unit (defaults to px). */
+function cssLen(value: number | null | undefined, unit: WUnit | undefined): string | undefined {
+  return value ? `${value}${unit ?? 'px'}` : undefined
+}
 
 const DEFAULT_MODEL: TableModel = {
   cols: [{ w: 180 }, { w: 180 }],
@@ -47,6 +53,7 @@ function serialize(model: TableModel): string {
 function cloneModel(model: TableModel): TableModel {
   return {
     width: model.width,
+    widthUnit: model.widthUnit,
     cols: model.cols.map((col) => ({ ...col })),
     rows: model.rows.map((row) => ({ ...row, cells: row.cells.map((cell) => ({ ...cell })) })),
   }
@@ -224,7 +231,7 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
     const onMove = (e: MouseEvent) => { width = Math.max(48, startW + (e.clientX - startX)); if (colEl) colEl.style.width = `${width}px` }
     const onUp = () => {
       window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
-      const next = cloneModel(model); next.cols[c].w = width; setModel(next); writeNow(next)
+      const next = cloneModel(model); next.cols[c].w = width; next.cols[c].unit = 'px'; setModel(next); writeNow(next)
     }
     window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
   }
@@ -249,18 +256,16 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
   const deleteRow = (r: number) => { if (model.rows.length > 1) mutate((m) => m.rows.splice(r, 1)) }
   const deleteColumn = (c: number) => { if (colCount > 1) mutate((m) => { m.cols.splice(c, 1); m.rows.forEach((row) => row.cells.splice(c, 1)) }) }
   const setColAlign = (c: number, align: Align) => mutate((m) => { m.cols[c].align = align })
-  const setColWidth = (c: number, w: number | null) => mutate((m) => {
-    m.cols[c].w = w
-    // Keep the overall width consistent with the columns once any are fixed.
-    m.width = m.cols.every((col) => col.w) ? m.cols.reduce((sum, col) => sum + (col.w ?? 0), 0) : null
-  })
-  const setTableWidth = (w: number | null) => mutate((m) => {
+  const setColWidth = (c: number, w: number | null, unit: WUnit) => mutate((m) => { m.cols[c].w = w; m.cols[c].unit = unit })
+  const setTableWidth = (w: number | null, unit: WUnit) => mutate((m) => {
     m.width = w
-    if (w) {
-      // Rescale columns proportionally so the table becomes exactly `w`.
+    m.widthUnit = unit
+    // For a px table width, rescale px columns proportionally so the table
+    // becomes exactly `w`. For a % width, columns keep their own units.
+    if (w && unit === 'px' && m.cols.every((col) => (col.unit ?? 'px') === 'px')) {
       const widths = m.cols.map((col) => col.w ?? 160)
       const total = widths.reduce((a, b) => a + b, 0) || 1
-      m.cols.forEach((col, i) => { col.w = Math.max(48, Math.round((widths[i] / total) * w)) })
+      m.cols.forEach((col, i) => { col.w = Math.max(30, Math.round((widths[i] / total) * w)); col.unit = 'px' })
     }
   })
 
@@ -293,25 +298,31 @@ function AdvancedTable({ view, pos, source }: ReactBlockRenderArgs) {
           </div>
           <label className="adv-props-row">
             <span>Table width</span>
-            <input type="number" min={0} placeholder="auto" value={model.width ?? ''} onChange={(e) => setTableWidth(e.target.value ? Number(e.target.value) : null)} />
-            <span className="adv-props-unit">px</span>
+            <input type="number" min={0} placeholder="auto" value={model.width ?? ''} onChange={(e) => setTableWidth(e.target.value ? Number(e.target.value) : null, model.widthUnit ?? 'px')} />
+            <select className="adv-props-unit" value={model.widthUnit ?? 'px'} onChange={(e) => setTableWidth(model.width ?? null, e.target.value as WUnit)}>
+              <option value="px">px</option>
+              <option value="%">%</option>
+            </select>
           </label>
           <div className="adv-props-cols">
             {model.cols.map((col, c) => (
               <label className="adv-props-row" key={c}>
                 <span>Col {c + 1} width</span>
-                <input type="number" min={0} placeholder="auto" value={col.w ?? ''} onChange={(e) => setColWidth(c, e.target.value ? Number(e.target.value) : null)} />
-                <span className="adv-props-unit">px</span>
+                <input type="number" min={0} placeholder="auto" value={col.w ?? ''} onChange={(e) => setColWidth(c, e.target.value ? Number(e.target.value) : null, col.unit ?? 'px')} />
+                <select className="adv-props-unit" value={col.unit ?? 'px'} onChange={(e) => setColWidth(c, col.w ?? null, e.target.value as WUnit)}>
+                  <option value="px">px</option>
+                  <option value="%">%</option>
+                </select>
               </label>
             ))}
           </div>
         </div>
       )}
 
-      <table className="adv-table" style={model.width ? { width: model.width, tableLayout: 'fixed' } : undefined}>
+      <table className="adv-table" style={model.width ? { width: cssLen(model.width, model.widthUnit), tableLayout: 'fixed' } : undefined}>
         <colgroup>
           {model.cols.map((col, c) => (
-            <col key={c} style={col.w ? { width: col.w } : undefined} />
+            <col key={c} style={col.w ? { width: cssLen(col.w, col.unit) } : undefined} />
           ))}
         </colgroup>
         <tbody>
