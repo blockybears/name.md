@@ -12,10 +12,10 @@ const PATTERNS: Pattern[] = [
   { re: /==([^=\n]+)==/g, cls: 'cm-hl', open: 2, close: 2 },
   { re: /<u>([\s\S]*?)<\/u>/g, cls: 'cm-u', open: 3, close: 4 },
   { re: /<kbd>([\s\S]*?)<\/kbd>/g, cls: 'cm-kbd', open: 5, close: 6 },
-  // single ~ (not ~~ strikethrough)
-  { re: /(?<![~\w])~([^~\s][^~\n]*?)~(?![~\w])/g, cls: 'cm-sub', open: 1, close: 1 },
-  // single ^ (not a [^footnote])
-  { re: /(?<![\^\w])\^([^\s^]+?)\^(?![\^\w])/g, cls: 'cm-sup', open: 1, close: 1 },
+  // single ~ (not ~~ strikethrough); may sit against text, e.g. H~2~O
+  { re: /(?<!~)~([^~\s][^~\n]*?)~(?!~)/g, cls: 'cm-sub', open: 1, close: 1 },
+  // single ^ (not a [^footnote], which has no closing ^), e.g. x^2^
+  { re: /(?<!\^)\^([^\s^]+?)\^(?!\^)/g, cls: 'cm-sup', open: 1, close: 1 },
 ]
 
 const hide = Decoration.replace({})

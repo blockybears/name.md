@@ -234,8 +234,8 @@ const REGEX_FORMAT: Record<string, RegExp> = {
   highlight: /==[^=\n]+==/g,
   underline: /<u>[\s\S]*?<\/u>/g,
   keyboardKey: /<kbd>[\s\S]*?<\/kbd>/g,
-  subscript: /(?<![~\w])~[^~\s][^~\n]*?~(?![~\w])/g,
-  superscript: /(?<![\^\w])\^[^\s^]+?\^(?![\^\w])/g,
+  subscript: /(?<!~)~[^~\s][^~\n]*?~(?!~)/g,
+  superscript: /(?<!\^)\^[^\s^]+?\^(?!\^)/g,
 }
 
 function regexFormatActive(view: EditorView, re: RegExp): boolean {
